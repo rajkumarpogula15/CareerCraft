@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:app_links/app_links.dart';
+
 import 'screens/home_screen.dart';
 import 'screens/repos_screen.dart';
 import 'screens/profile_screen.dart';
+import 'state/app_state.dart';
 
 void main() {
   runApp(const CareerCraftApp());
@@ -33,6 +37,8 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   int index = 0;
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSub;
 
   late final List<Widget> screens = [
     HomeScreen(onLogin: _refresh),
@@ -40,8 +46,40 @@ class _MainLayoutState extends State<MainLayout> {
     ProfileScreen(onLogout: _refresh),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _initDeepLinks();
+  }
+
+  void _initDeepLinks() async {
+    // Handle app opened from terminated state
+    final uri = await _appLinks.getInitialLink();
+    _handleUri(uri);
+
+    // Handle app opened while running
+    _linkSub = _appLinks.uriLinkStream.listen(_handleUri);
+  }
+
+  void _handleUri(Uri? uri) {
+    if (uri == null) return;
+
+    if (uri.scheme == 'careercraft' && uri.host == 'login-success') {
+      AppState.isLoggedIn = true;
+      setState(() {
+        index = 0;
+      });
+    }
+  }
+
   void _refresh() {
     setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
   }
 
   @override

@@ -17,8 +17,6 @@ class HomeScreen extends StatelessWidget {
       Uri.parse('$backendUrl/auth/github/login'),
       mode: LaunchMode.externalApplication,
     );
-    AppState.isLoggedIn = true;
-    onLogin();
   }
 
   @override

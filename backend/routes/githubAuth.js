@@ -32,10 +32,9 @@ router.get('/callback', async (req, res) => {
     githubToken = tokenRes.data.access_token;
     loggedIn = true;
 
-    res.send(`
-      <h2>Login successful</h2>
-      <p>You can close this tab and return to the app.</p>
-    `);
+    // 🔥 REDIRECT BACK TO FLUTTER APP
+    res.redirect('careercraft://login-success');
+
   } catch (err) {
     res.status(500).send('GitHub login failed');
   }

@@ -34,7 +34,7 @@ class RepoCard extends StatelessWidget {
           },
           itemBuilder: (context) => const [
             PopupMenuItem(value: 'details', child: Text('Repository Details')),
-            PopupMenuItem(value: 'readme', child: Text('Generate README')),
+            PopupMenuItem(value: 'readme', child: Text('Generate README file')),
             PopupMenuItem(value: 'chat', child: Text('Repository Chatbot')),
             PopupMenuItem(value: 'favourite', child: Text('Mark as Favourite')),
             PopupMenuItem(value: 'github', child: Text('Open on GitHub')),

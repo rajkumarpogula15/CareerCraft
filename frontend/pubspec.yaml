@@ -38,6 +38,7 @@ dependencies:
   url_launcher: ^6.3.2
   app_links: ^6.1.1
   flutter_secure_storage: ^10.0.0
+  flutter_markdown: ^0.7.3
 
 dev_dependencies:
   flutter_test:

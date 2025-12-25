@@ -6,6 +6,9 @@ const connectDB = require('./config/db');
 
 // Routes
 const githubAuth = require('./routes/githubAuth');
+const aiReadmeRoutes = require('./routes/aiReadme');
+const chatRoutes = require('./routes/repoChat');
+
 
 // Initialize app
 const app = express();
@@ -19,6 +22,9 @@ app.use(express.json());
 
 // Routes
 app.use('/auth/github', githubAuth);
+app.use('/ai/readme', aiReadmeRoutes);
+app.use('/chat', chatRoutes);
+
 
 // Health check
 app.get('/', (req, res) => {

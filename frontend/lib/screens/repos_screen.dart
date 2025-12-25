@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
 import '../state/app_state.dart';
 import '../widgets/repo_card.dart';
 import '../config/app_config.dart';
@@ -13,9 +14,8 @@ class ReposScreen extends StatefulWidget {
 }
 
 class _ReposScreenState extends State<ReposScreen> {
-  final String backendUrl = AppConfig.backendBaseUrl;
   bool loading = true;
-  List repos = [];
+  List<dynamic> repos = [];
 
   @override
   void initState() {
@@ -26,21 +26,25 @@ class _ReposScreenState extends State<ReposScreen> {
   }
 
   Future<void> fetchRepos() async {
-    final res = await http.get(
-      Uri.parse('${AppConfig.backendBaseUrl}/auth/github/repos'),
-      headers: {'Authorization': 'Bearer ${AppState.jwt}'},
-    );
+    try {
+      final res = await http.get(
+        Uri.parse('${AppConfig.backendBaseUrl}/auth/github/repos'),
+        headers: {'Authorization': 'Bearer ${AppState.jwt}'},
+      );
 
-    if (res.statusCode == 200) {
-      setState(() {
-        repos = json.decode(res.body);
+      if (res.statusCode == 200) {
+        setState(() {
+          repos = json.decode(res.body);
+          loading = false;
+        });
+      } else {
         loading = false;
-      });
-    } else {
-      setState(() {
-        loading = false;
-      });
+      }
+    } catch (e) {
+      loading = false;
     }
+
+    setState(() {});
   }
 
   @override
@@ -53,6 +57,10 @@ class _ReposScreenState extends State<ReposScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    if (repos.isEmpty) {
+      return const Center(child: Text('No repositories found'));
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('My Repositories')),
       body: ListView.builder(
@@ -60,10 +68,18 @@ class _ReposScreenState extends State<ReposScreen> {
         itemCount: repos.length,
         itemBuilder: (context, index) {
           final repo = repos[index];
+
+          final fullName = repo['full_name'] ?? '';
+          final owner = fullName.contains('/')
+              ? fullName.split('/')[0]
+              : 'unknown';
+
           return RepoCard(
-            name: repo['name'],
+            name: repo['name'] ?? 'Unnamed Repo',
             description: repo['description'] ?? 'No description',
-            isPrivate: repo['private'],
+            isPrivate: repo['private'] ?? false,
+            owner: owner,
+            language: repo['language'],
           );
         },
       ),

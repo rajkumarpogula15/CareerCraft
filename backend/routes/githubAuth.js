@@ -80,6 +80,8 @@ router.get('/callback', async (req, res) => {
 
     // 📱 Deep link back to Flutter app
     res.redirect(`careercraft://login-success?token=${jwtToken}`);
+    // res.json({ jwt: jwtToken });
+
   } catch (err) {
     console.error('GitHub OAuth error:', err);
     res.status(500).send('GitHub login failed');

@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
+import 'readme_preview_sheet.dart';
+import '../screens/repo_chat_screen.dart';
 
 class RepoCard extends StatelessWidget {
   final String name;
   final String description;
   final bool isPrivate;
+  final String owner;
+  final String? language;
 
   const RepoCard({
     super.key,
     required this.name,
     required this.description,
     required this.isPrivate,
+    required this.owner,
+    this.language,
   });
 
   @override
@@ -29,12 +35,10 @@ class RepoCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            _handleAction(context, value);
-          },
+          onSelected: (value) => _handleAction(context, value),
           itemBuilder: (context) => const [
             PopupMenuItem(value: 'details', child: Text('Repository Details')),
-            PopupMenuItem(value: 'readme', child: Text('Generate README file')),
+            PopupMenuItem(value: 'readme', child: Text('Generate README (AI)')),
             PopupMenuItem(value: 'chat', child: Text('Repository Chatbot')),
             PopupMenuItem(value: 'favourite', child: Text('Mark as Favourite')),
             PopupMenuItem(value: 'github', child: Text('Open on GitHub')),
@@ -51,14 +55,15 @@ class RepoCard extends StatelessWidget {
         break;
 
       case 'readme':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Generate README (coming next)')),
-        );
+        _showReadmeGenerator(context);
         break;
 
       case 'chat':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Repository Chatbot (coming next)')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RepoChatScreen(owner: owner, repo: name),
+          ),
         );
         break;
 
@@ -74,6 +79,25 @@ class RepoCard extends StatelessWidget {
         );
         break;
     }
+  }
+
+  void _showReadmeGenerator(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.9,
+        child: ReadmePreviewSheet(
+          repoName: name,
+          owner: owner,
+          description: description,
+          language: language,
+        ),
+      ),
+    );
   }
 
   void _showDetails(BuildContext context) {

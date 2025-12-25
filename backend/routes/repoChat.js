@@ -9,11 +9,13 @@ const User = require('../models/User');
 const { fetchRepoFiles } = require('../utils/githubRepoReader');
 const { buildRepoContext } = require('../utils/repoContext');
 const { resolveRepo } = require('../utils/resolveRepo');
+const logActivity = require('../utils/logActivity'); // ✅ ADD THIS
 
 const router = express.Router();
 
 /**
  * CREATE / GET SESSION
+ * ❌ No activity logging here (setup-only)
  */
 router.post('/session', requireAuth, async (req, res) => {
   try {
@@ -55,7 +57,7 @@ router.post('/message', requireAuth, async (req, res) => {
       });
     }
 
-    // 🔐 Load user + GitHub token safely
+    // 🔐 Load user + GitHub token
     const user = await User.findById(req.user.userId);
     if (!user?.githubAccessToken) {
       return res.json({
@@ -74,7 +76,7 @@ router.post('/message', requireAuth, async (req, res) => {
     });
 
     /**
-     * Resolve repository (owner + name)
+     * Resolve repository
      */
     let repo;
     try {
@@ -101,11 +103,11 @@ router.post('/message', requireAuth, async (req, res) => {
     const repoContext = buildRepoContext(repoFiles, message);
 
     /**
-     * Load previous chat (MEMORY)
+     * Load previous chat (memory)
      */
     const history = await ChatMessage.find({ sessionId })
       .sort({ createdAt: 1 })
-      .limit(10); // last 10 messages only
+      .limit(10);
 
     const conversation = history.map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
@@ -113,7 +115,7 @@ router.post('/message', requireAuth, async (req, res) => {
     }));
 
     /**
-     * SYSTEM PROMPT (STRICT)
+     * SYSTEM PROMPT
      */
     const systemPrompt = `
 You are a STRICT repository-specific senior developer assistant.
@@ -165,6 +167,17 @@ RULES (MANDATORY):
       content: reply,
     });
 
+    /**
+     * ✅ LOG ACTIVITY: REPO CHAT
+     * Logged ONLY after a successful assistant reply
+     */
+    await logActivity({
+      userId: req.user.userId,
+      type: 'repo_chat',
+      repoName: session.repoName,
+      message: `Chatted with ${session.repoName} assistant`,
+    });
+
     res.json({ reply });
   } catch (err) {
     console.error('[CHAT] Error:', err);
@@ -177,6 +190,7 @@ RULES (MANDATORY):
 
 /**
  * FETCH HISTORY
+ * ❌ No activity logging (read-only)
  */
 router.get('/history/:sessionId', requireAuth, async (req, res) => {
   try {
@@ -185,7 +199,7 @@ router.get('/history/:sessionId', requireAuth, async (req, res) => {
     }).sort({ createdAt: 1 });
 
     res.json(messages);
-  } catch (err) {
+  } catch {
     res.status(500).json([]);
   }
 });

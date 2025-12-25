@@ -95,15 +95,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: AppState.isLoggedIn
-            ? (_loadingProfile
-                  ? const Center(child: CircularProgressIndicator())
-                  : const LoggedInView())
-            : LoggedOutView(onLogin: _loginWithGitHub),
-      ),
+    return Padding(
+      padding: const EdgeInsets.all(20), // ✅ content padding only
+      child: AppState.isLoggedIn
+          ? (_loadingProfile
+                ? const Center(child: CircularProgressIndicator())
+                : const LoggedInView())
+          : LoggedOutView(onLogin: _loginWithGitHub),
     );
   }
 }

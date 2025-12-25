@@ -1,11 +1,13 @@
 const express = require('express');
 const requireAuth = require('../middleware/requireAuth');
 const Repository = require('../models/Repository');
+const logActivity = require('../utils/logActivity');
 
 const router = express.Router();
 
 /**
- * TOGGLE FAVOURITE
+ * ADD TO FAVOURITES
+ * POST /:repoId/favourite
  */
 router.post('/:repoId/favourite', requireAuth, async (req, res) => {
   try {
@@ -16,50 +18,107 @@ router.post('/:repoId/favourite', requireAuth, async (req, res) => {
     }
 
     const userId = req.user.userId;
+    const repoPayload = req.body;
 
-    // Check existing repository
-    const existing = await Repository.findOne({ userId, repoId });
-
-    if (existing) {
-      existing.favourite = !existing.favourite;
-      await existing.save();
-
-      return res.json({
-        success: true,
-        action: 'toggled',
-        favourite: existing.favourite,
-        repo: existing,
-      });
-    }
-
-    // Create new favourite
-    const repo = req.body;
-
-    if (!repo || !repo.name) {
+    if (!repoPayload || !repoPayload.name) {
       return res.status(400).json({ error: 'Invalid repo payload' });
     }
 
-    const created = await Repository.create({
+    let repo = await Repository.findOne({ userId, repoId });
+
+    // If repo exists, just mark as favourite
+    if (repo) {
+      if (repo.favourite) {
+        return res.json({
+          success: true,
+          action: 'already_favourite',
+          favourite: true,
+          repo,
+        });
+      }
+
+      repo.favourite = true;
+      await repo.save();
+    } else {
+      // Create repo and favourite it
+      repo = await Repository.create({
+        userId,
+        repoId,
+        name: repoPayload.name,
+        fullName: repoPayload.fullName,
+        description: repoPayload.description,
+        private: repoPayload.private,
+        htmlUrl: repoPayload.htmlUrl,
+        favourite: true,
+      });
+    }
+
+    await logActivity({
       userId,
-      repoId,
-      name: repo.name,
-      fullName: repo.fullName,
-      description: repo.description,
-      private: repo.private,
-      htmlUrl: repo.htmlUrl,
-      favourite: true,
+      type: 'repo_favourite',
+      repoName: repo.name,
+      message: `Marked ${repo.name} as favourite`,
     });
 
-    return res.json({
+    res.json({
       success: true,
-      action: 'created',
+      action: 'added',
       favourite: true,
-      repo: created,
+      repo,
     });
   } catch (err) {
     res.status(500).json({
       success: false,
-      error: 'Failed to toggle favourite',
+      error: 'Failed to add favourite',
+      message: err.message,
+    });
+  }
+});
+
+/**
+ * REMOVE FROM FAVOURITES
+ * DELETE /:repoId/favourite
+ */
+router.delete('/:repoId/favourite', requireAuth, async (req, res) => {
+  try {
+    const repoId = Number(req.params.repoId);
+
+    if (Number.isNaN(repoId)) {
+      return res.status(400).json({ error: 'Invalid repoId' });
+    }
+
+    const userId = req.user.userId;
+
+    const repo = await Repository.findOne({ userId, repoId });
+
+    if (!repo || !repo.favourite) {
+      return res.json({
+        success: true,
+        action: 'already_removed',
+        favourite: false,
+      });
+    }
+
+    repo.favourite = false;
+    await repo.save();
+
+    await logActivity({
+      userId,
+      type: 'repo_favourite',
+      repoName: repo.name,
+      message: `Removed ${repo.name} from favourites`,
+    });
+
+    res.json({
+      success: true,
+      action: 'removed',
+      favourite: false,
+      repo,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to remove favourite',
       message: err.message,
     });
   }
@@ -67,6 +126,7 @@ router.post('/:repoId/favourite', requireAuth, async (req, res) => {
 
 /**
  * GET FAVOURITES
+ * GET /favourites
  */
 router.get('/favourites', requireAuth, async (req, res) => {
   try {

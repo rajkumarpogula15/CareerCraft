@@ -7,6 +7,7 @@ import 'screens/repos_screen.dart';
 import 'screens/profile_screen.dart';
 import 'state/app_state.dart';
 import 'services/auth_service.dart';
+import 'widgets/top_bar.dart';
 
 void main() {
   runApp(const CareerCraftApp());
@@ -38,7 +39,7 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
     _initDeepLinks();
   }
 
-  /// Restore JWT from secure storage on app start
+  /// Restore JWT from secure storage
   Future<void> _restoreSession() async {
     final token = await AuthService.getToken();
     if (token != null) {
@@ -94,6 +95,7 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
         useMaterial3: true,
       ),
       home: Scaffold(
+        appBar: const TopBar(), // ✅ REUSABLE TOP BAR WIDGET
         body: screens[index],
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: index,

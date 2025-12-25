@@ -6,41 +6,41 @@ const UserSchema = new mongoose.Schema(
       type: Number,
       required: true,
       unique: true,
-      index: true
+      index: true,
     },
 
-    username: {
+    username: String,
+    name: String,
+    avatar: String,
+    email: String,
+
+    // 🔑 GitHub OAuth token
+    githubAccessToken: {
       type: String,
-      required: true
+      required: true,
     },
 
-    name: {
-      type: String
+    // ✅ GitHub stats
+    public_repos: {
+      type: Number,
+      default: 0,
     },
-
-    avatar: {
-      type: String
+    followers: {
+      type: Number,
+      default: 0,
     },
-
-    email: {
-      type: String
+    following: {
+      type: Number,
+      default: 0,
     },
 
     role: {
       type: String,
       enum: ['user', 'admin'],
-      default: 'user'
+      default: 'user',
     },
-
-    authProvider: {
-      type: String,
-      enum: ['github'],
-      default: 'github'
-    }
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 );
 
 module.exports = mongoose.model('User', UserSchema);

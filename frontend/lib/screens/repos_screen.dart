@@ -26,11 +26,18 @@ class _ReposScreenState extends State<ReposScreen> {
   }
 
   Future<void> fetchRepos() async {
-    final res = await http.get(Uri.parse('$backendUrl/auth/github/repos'));
+    final res = await http.get(
+      Uri.parse('${AppConfig.backendBaseUrl}/auth/github/repos'),
+      headers: {'Authorization': 'Bearer ${AppState.jwt}'},
+    );
 
     if (res.statusCode == 200) {
       setState(() {
         repos = json.decode(res.body);
+        loading = false;
+      });
+    } else {
+      setState(() {
         loading = false;
       });
     }

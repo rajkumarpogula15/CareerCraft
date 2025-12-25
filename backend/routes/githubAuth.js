@@ -1,24 +1,33 @@
 const express = require('express');
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
+
+const User = require('../models/User');
+const requireAuth = require('../middleware/requireAuth');
 
 const router = express.Router();
 
-let loggedIn = false;
-let githubToken = null;
-
+/**
+ * STEP 1: Redirect to GitHub OAuth
+ */
 router.get('/login', (req, res) => {
   const githubUrl =
-    `https://github.com/login/oauth/authorize` +
+    'https://github.com/login/oauth/authorize' +
     `?client_id=${process.env.GITHUB_CLIENT_ID}` +
-    `&scope=read:user repo`;
+    '&scope=read:user repo';
 
   res.redirect(githubUrl);
 });
 
+/**
+ * STEP 2: GitHub OAuth Callback
+ */
 router.get('/callback', async (req, res) => {
   const { code } = req.query;
+  if (!code) return res.status(400).send('Missing code');
 
   try {
+    // 🔑 Exchange code for access token
     const tokenRes = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
@@ -29,87 +38,111 @@ router.get('/callback', async (req, res) => {
       { headers: { Accept: 'application/json' } }
     );
 
-    githubToken = tokenRes.data.access_token;
-    loggedIn = true;
+    const accessToken = tokenRes.data.access_token;
+    if (!accessToken) return res.status(401).send('No access token');
 
-    // REDIRECT BACK TO FLUTTER APP
-    res.redirect('careercraft://login-success');
+    // 👤 Fetch GitHub user profile
+    const ghUserRes = await axios.get('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+    });
 
+    const gh = ghUserRes.data;
+
+    // ✅ CREATE OR UPDATE USER (IMPORTANT FIX)
+    const user = await User.findOneAndUpdate(
+      { githubId: gh.id },
+      {
+        githubId: gh.id,
+        username: gh.login,
+        name: gh.name,
+        avatar: gh.avatar_url,
+        email: gh.email,
+
+        // 🔥 GitHub stats (THIS FIXES 0 FOLLOWERS ISSUE)
+        public_repos: gh.public_repos,
+        followers: gh.followers,
+        following: gh.following,
+
+        githubAccessToken: accessToken,
+      },
+      { upsert: true, new: true }
+    );
+
+    // 🔐 Create JWT for app auth
+    const jwtToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    // 📱 Deep link back to Flutter app
+    res.redirect(`careercraft://login-success?token=${jwtToken}`);
   } catch (err) {
+    console.error('GitHub OAuth error:', err);
     res.status(500).send('GitHub login failed');
   }
 });
 
-
-router.get('/status', (req, res) => {
-  res.json({ loggedIn });
-});
-
-router.get('/repos', async (req, res) => {
-  if (!githubToken) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
+/**
+ * FETCH REPOSITORIES (JWT + GitHub)
+ */
+router.get('/repos', requireAuth, async (req, res) => {
   try {
-    const reposRes = await axios.get(
-      'https://api.github.com/user/repos',
-      {
-        headers: {
-          Authorization: `token ${githubToken}`,
-          Accept: 'application/vnd.github+json',
-        },
-        params: {
-          sort: 'updated',
-          per_page: 50,
-        },
-      }
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const reposRes = await axios.get('https://api.github.com/user/repos', {
+      headers: {
+        Authorization: `Bearer ${user.githubAccessToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+      params: { per_page: 50, sort: 'updated' },
+    });
+
+    res.json(
+      reposRes.data.map(repo => ({
+        id: repo.id,
+        name: repo.name,
+        description: repo.description,
+        private: repo.private,
+        html_url: repo.html_url,
+      }))
     );
-
-    const repos = reposRes.data.map(repo => ({
-      id: repo.id,
-      name: repo.name,
-      full_name: repo.full_name,
-      private: repo.private,
-      description: repo.description,
-      html_url: repo.html_url,
-    }));
-
-    res.json(repos);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch repositories' });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch repos' });
   }
 });
 
-router.get('/profile', async (req, res) => {
-  if (!githubToken) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
+/**
+ * FETCH PROFILE (JWT + DB)
+ */
+router.get('/profile', requireAuth, async (req, res) => {
   try {
-    const userRes = await axios.get(
-      'https://api.github.com/user',
-      {
-        headers: {
-          Authorization: `token ${githubToken}`,
-          Accept: 'application/vnd.github+json',
-        },
-      }
+    const user = await User.findById(req.user.userId).select(
+      'username name avatar email public_repos followers following'
     );
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     res.json({
-      name: userRes.data.name,
-      username: userRes.data.login,
-      avatar: userRes.data.avatar_url,
-      bio: userRes.data.bio,
-      followers: userRes.data.followers,
-      following: userRes.data.following,
-      public_repos: userRes.data.public_repos,
+      username: user.username,
+      name: user.name,
+      avatar: user.avatar,
+      email: user.email,
+      public_repos: user.public_repos,
+      followers: user.followers,
+      following: user.following,
     });
-  } catch (e) {
+  } catch (err) {
+    console.error('Profile fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
-
-
 
 module.exports = router;

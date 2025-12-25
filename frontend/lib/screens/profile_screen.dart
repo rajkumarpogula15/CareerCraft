@@ -21,20 +21,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    if (AppState.isLoggedIn) {
+    if (AppState.isLoggedIn && AppState.jwt != null) {
       fetchProfile();
+    } else {
+      loading = false;
     }
   }
 
   Future<void> fetchProfile() async {
     try {
-      final res = await http.get(Uri.parse('$backendUrl/auth/github/profile'));
+      final res = await http.get(
+        Uri.parse('$backendUrl/auth/github/profile'),
+        headers: {
+          'Authorization': 'Bearer ${AppState.jwt}',
+          'Content-Type': 'application/json',
+        },
+      );
 
       if (res.statusCode == 200) {
         setState(() {
           AppState.user = json.decode(res.body);
           loading = false;
         });
+      } else {
+        setState(() => loading = false);
       }
     } catch (_) {
       setState(() => loading = false);
@@ -43,15 +53,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ SHOW MESSAGE INSTEAD OF EMPTY SCREEN
     if (!AppState.isLoggedIn) {
-      return const Center(child: Text('Login to view profile'));
+      return const Center(
+        child: Text(
+          'Login to view your profile',
+          style: TextStyle(fontSize: 16),
+        ),
+      );
     }
 
     if (loading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final user = AppState.user!;
+    final user = AppState.user;
+    if (user == null) {
+      return const Center(child: Text('Failed to load profile'));
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -68,7 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ---------------- UI SECTIONS ----------------
+  // ---------------- UI ----------------
 
   Widget _profileHeader(Map user) {
     return Card(
@@ -80,7 +99,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             CircleAvatar(
               radius: 48,
-              backgroundImage: NetworkImage(user['avatar']),
+              backgroundImage: user['avatar'] != null
+                  ? NetworkImage(user['avatar'])
+                  : null,
             ),
             const SizedBox(height: 12),
             Text(
@@ -92,6 +113,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               '@${user['username']}',
               style: const TextStyle(color: Colors.grey),
             ),
+            if (user['email'] != null) ...[
+              const SizedBox(height: 6),
+              Text(user['email'], style: const TextStyle(color: Colors.grey)),
+            ],
           ],
         ),
       ),
@@ -101,9 +126,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _statsSection(Map user) {
     return Row(
       children: [
-        _statCard('Repos', user['public_repos']),
-        _statCard('Followers', user['followers']),
-        _statCard('Following', user['following']),
+        _statCard('Repos', user['public_repos'] ?? 0),
+        _statCard('Followers', user['followers'] ?? 0),
+        _statCard('Following', user['following'] ?? 0),
       ],
     );
   }
@@ -136,19 +161,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _actionsSection() {
     return Column(
       children: [
-        PrimaryButton(
-          label: 'Create Resume',
-          onTap: () {
-            // TODO: Navigate to resume builder
-          },
-        ),
+        PrimaryButton(label: 'Create Resume', onTap: () {}),
         const SizedBox(height: 12),
         OutlinedButton(
-          onPressed: () {
-            AppState.isLoggedIn = false;
-            AppState.user = null;
-            widget.onLogout();
-          },
+          onPressed: _confirmLogout,
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.red,
             side: const BorderSide(color: Colors.red),
@@ -161,5 +177,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ],
     );
+  }
+
+  // ---------------- LOGOUT ----------------
+
+  void _confirmLogout() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _logout();
+            },
+            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _logout() {
+    setState(() {
+      AppState.isLoggedIn = false;
+      AppState.jwt = null;
+      AppState.user = null;
+    });
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Logged out successfully')));
+
+    widget.onLogout(); // parent rebuilds & shows login
   }
 }

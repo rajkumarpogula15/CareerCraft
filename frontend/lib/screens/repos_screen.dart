@@ -7,7 +7,7 @@ import '../widgets/repo_card.dart';
 import '../config/app_config.dart';
 
 class ReposScreen extends StatefulWidget {
-  const ReposScreen({super.key});
+  const ReposScreen({Key? key}) : super(key: key);
 
   @override
   State<ReposScreen> createState() => _ReposScreenState();
@@ -33,18 +33,13 @@ class _ReposScreenState extends State<ReposScreen> {
       );
 
       if (res.statusCode == 200) {
-        setState(() {
-          repos = json.decode(res.body);
-          loading = false;
-        });
-      } else {
-        loading = false;
+        repos = jsonDecode(res.body);
       }
-    } catch (e) {
-      loading = false;
-    }
+    } catch (_) {}
 
-    setState(() {});
+    setState(() {
+      loading = false;
+    });
   }
 
   @override
@@ -75,10 +70,13 @@ class _ReposScreenState extends State<ReposScreen> {
               : 'unknown';
 
           return RepoCard(
+            repoId: repo['id'], // ✅ REQUIRED
             name: repo['name'] ?? 'Unnamed Repo',
-            description: repo['description'] ?? 'No description',
+            description: repo['description'] ?? '',
             isPrivate: repo['private'] ?? false,
             owner: owner,
+            htmlUrl: repo['html_url'], // ✅ REQUIRED
+            isFavourite: repo['favourite'] ?? false,
             language: repo['language'],
           );
         },

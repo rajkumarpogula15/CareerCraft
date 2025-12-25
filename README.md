@@ -1,113 +1,100 @@
 ```markdown
 # CareerCraft
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Dart Version](https://img.shields.io/badge/Dart-3.x-blue.svg)](https://dart.dev/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Language](https://img.shields.io/badge/Language-Dart-blue.svg)]()
+[![Status](https://img.shields.io/badge/Status-In%20Development-orange.svg)]()
 
 ## 🌟 Overview
 
-**CareerCraft** is a comprehensive, full-stack application designed to empower users in managing and advancing their professional careers. This major project leverages modern technologies, integrating a robust backend infrastructure with a dynamic, user-friendly frontend built in Dart/Flutter.
+**CareerCraft** is a comprehensive, full-stack application designed to empower individuals in navigating their career paths. This project leverages a modern architecture, utilizing **Dart** for both the backend services and the mobile/web frontend.
 
-This repository serves as the central hub for all components of the CareerCraft ecosystem.
+This repository serves as the central hub for the **Major Project** undertaken by [rajkumarpogula15](https://github.com/rajkumarpogula15).
 
-## 🚀 Features (Conceptual)
+## 🏗️ Architecture & Technology Stack
 
-While the specific features are defined within the project scope, a typical career management platform includes:
+CareerCraft is structured into distinct components to ensure scalability, maintainability, and clear separation of concerns.
 
-*   **Profile Management:** Detailed and customizable professional profiles.
-*   **Goal Setting & Tracking:** Tools for setting, monitoring, and achieving career milestones.
-*   **Skill Development:** Identifying skill gaps and recommending learning resources.
-*   **Job/Opportunity Matching:** Integration with external job boards or internal listings.
-*   **Networking & Mentorship:** Features to connect with peers and mentors.
-
-## 🏗️ Architecture & Technologies
-
-CareerCraft is structured into two primary components:
-
-| Component | Technology Stack | Description |
+| Component | Technology | Description |
 | :--- | :--- | :--- |
-| **Frontend** | Dart / Flutter | Responsible for the user interface and experience across multiple platforms. |
-| **Backend** | (To be defined, e.g., Dart/Shelf, Dart/Aqueduct, or separate service) | Handles data persistence, business logic, and API serving. |
+| **Frontend** | Dart (Flutter) | Cross-platform user interface for job seekers and career advisors. |
+| **Backend** | Dart (e.g., Shelf/Aqueduct/Serverpod - *Specific framework to be determined/documented*) | Core business logic, API provision, and data handling. |
+| **Database** | (To be specified in backend documentation) | Data persistence layer. |
 
-### Folder Structure
+## 📂 Repository Structure
+
+The repository is organized clearly to separate client and server components:
 
 ```
 CareerCraft/
-├── .gitignore        # Specifies intentionally untracked files to ignore.
-├── backend/          # Contains the server-side application logic and APIs.
-└── frontend/         # Contains the Dart/Flutter application source code.
+├── 📄 .gitignore         # Specifies files to ignore during Git operations.
+├── 📄 README.md          # This file.
+├── 📁 backend/           # Contains all server-side logic, APIs, and infrastructure code.
+└── 📁 frontend/          # Contains the Dart/Flutter application source code.
 ```
 
-## 💻 Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
-Ensure you have the following installed on your system:
+Before you begin, ensure you have the following installed:
 
-1.  **Dart SDK:** (Version 3.x recommended)
+1.  **Dart SDK:** (Version X.Y.Z or newer)
 2.  **Flutter SDK:** (If the frontend is Flutter-based)
 3.  **Git**
 
-### Cloning the Repository
+### Installation
 
-```bash
-git clone https://github.com/rajkumarpogula15/CareerCraft.git
-cd CareerCraft
-```
+1.  **Clone the repository:**
 
-### 1. Setting up the Frontend (Dart/Flutter)
+    ```bash
+    git clone https://github.com/rajkumarpogula15/CareerCraft.git
+    cd CareerCraft
+    ```
 
-Navigate to the frontend directory and fetch dependencies:
+2.  **Set up Backend (API Server):**
 
-```bash
-cd frontend
-flutter pub get  # Or 'dart pub get' if it's a pure Dart client
-# To run the application (if Flutter):
-# flutter run
-```
+    Navigate to the backend directory and install dependencies:
 
-### 2. Setting up the Backend
+    ```bash
+    cd backend
+    # dart pub get  # Or 'flutter pub get' if using Flutter for the backend
+    # Further setup instructions (e.g., database connection strings) will be located in backend/README.md
+    ```
 
-Navigate to the backend directory and install server dependencies:
+3.  **Set up Frontend (Client Application):**
 
-```bash
-cd ../backend
-# Install necessary backend dependencies (adjust command based on actual framework)
-dart pub get
-# Start the server (Example placeholder - replace with actual start command)
-# dart run bin/server.dart
-```
+    Navigate to the frontend directory and prepare the application:
 
-> **Note:** Configuration details (database connection strings, secrets, environment variables) for the backend should be managed via environment variables or a secure configuration system, not hardcoded.
+    ```bash
+    cd ../frontend
+    flutter pub get # or dart pub get if pure Dart CLI app
+    # Specific configuration for API endpoints may be required here.
+    ```
+
+### Running the Application
+
+Detailed instructions on running the server and client independently will be provided in their respective subdirectories.
 
 ## 🤝 Contributing
 
-We welcome contributions to CareerCraft! As a community-driven project, improvements, bug fixes, and new features are highly encouraged.
+We welcome contributions! As this is a major project, contributions are highly valuable for testing, design refinement, and feature expansion.
 
-Please review our contribution guidelines before submitting a Pull Request.
+Please read our [CONTRIBUTING.md](CONTRIBUTING.md) (to be created) for guidelines on submitting pull requests, reporting issues, and setting up your development environment.
 
-1.  **Fork** the repository.
-2.  **Clone** your fork locally.
-3.  Create a new **branch** (`git checkout -b feature/AmazingFeature`).
-4.  Make your changes and **commit** (`git commit -m 'feat: Add AmazingFeature'`).
-5.  **Push** to the branch (`git push origin feature/AmazingFeature`).
-6.  Open a **Pull Request** against the `main` branch of the original repository.
+### Code of Conduct
 
-### Code Style
-
-We adhere strictly to standard Dart formatting conventions. Please run the following command before committing:
-
-```bash
-dart format .
-```
+This project adheres to the Contributor Covenant Code of Conduct. By participating, you are expected to uphold these standards. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) (to be created) for details.
 
 ## 📄 License
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for more details.
 
-## 🏷️ Contact
+## 📞 Contact
 
-**Rajkumar Pogula** - [Your Profile Link/Email]
+The primary maintainer for this project is:
+
+**Rajkumar Pogula** - [@rajkumarpogula15](https://github.com/rajkumarpogula15) (GitHub)
 
 Project Link: [https://github.com/rajkumarpogula15/CareerCraft](https://github.com/rajkumarpogula15/CareerCraft)
 ```

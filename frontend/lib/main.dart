@@ -27,9 +27,12 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
   int index = 0;
 
   late final List<Widget> screens = [
-    HomeScreen(onLogin: _refresh),
+    HomeScreen(onLogin: _onLogin),
     const ReposScreen(),
-    ProfileScreen(onLogout: _refresh),
+    ProfileScreen(
+      onLogout: _refresh,
+      onLogin: _onLogin, // ✅ FIX: REQUIRED PARAM
+    ),
   ];
 
   @override
@@ -70,13 +73,19 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
       AppState.isLoggedIn = true;
 
       setState(() {
-        index = 0;
+        index = 0; // go back to Home after login
       });
     }
   }
 
+  /// Called after login or logout to rebuild UI
   void _refresh() {
     setState(() {});
+  }
+
+  /// Trigger GitHub OAuth (used by Home & Profile logged-out views)
+  void _onLogin() {
+    AuthService.loginWithGitHub();
   }
 
   @override
@@ -95,7 +104,7 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
         useMaterial3: true,
       ),
       home: Scaffold(
-        appBar: const TopBar(), // ✅ REUSABLE TOP BAR WIDGET
+        appBar: const TopBar(),
         body: screens[index],
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: index,

@@ -4,11 +4,18 @@ import 'package:http/http.dart' as http;
 
 import '../state/app_state.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/logged_out_view.dart';
 import '../config/app_config.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
-  const ProfileScreen({super.key, required this.onLogout});
+  final VoidCallback onLogin;
+
+  const ProfileScreen({
+    super.key,
+    required this.onLogout,
+    required this.onLogin,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -16,15 +23,15 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final String backendUrl = AppConfig.backendBaseUrl;
-  bool loading = true;
+  bool loading = false;
 
   @override
   void initState() {
     super.initState();
+
     if (AppState.isLoggedIn && AppState.jwt != null) {
+      loading = true;
       fetchProfile();
-    } else {
-      loading = false;
     }
   }
 
@@ -39,39 +46,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       if (res.statusCode == 200) {
-        setState(() {
-          AppState.user = json.decode(res.body);
-          loading = false;
-        });
-      } else {
-        setState(() => loading = false);
+        AppState.user = json.decode(res.body);
       }
     } catch (_) {
-      setState(() => loading = false);
+      // ignore errors silently
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ SHOW MESSAGE INSTEAD OF EMPTY SCREEN
+    // 🔒 NOT LOGGED IN
     if (!AppState.isLoggedIn) {
-      return const Center(
-        child: Text(
-          'Login to view your profile',
-          style: TextStyle(fontSize: 16),
-        ),
-      );
+      return LoggedOutView(onLogin: widget.onLogin);
     }
 
+    // ⏳ LOADING
     if (loading) {
       return const Center(child: CircularProgressIndicator());
     }
 
     final user = AppState.user;
+
+    // ❌ FAILED
     if (user == null) {
       return const Center(child: Text('Failed to load profile'));
     }
 
+    // ✅ PROFILE
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -102,6 +107,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               backgroundImage: user['avatar'] != null
                   ? NetworkImage(user['avatar'])
                   : null,
+              child: user['avatar'] == null
+                  ? const Icon(Icons.person, size: 48)
+                  : null,
             ),
             const SizedBox(height: 12),
             Text(
@@ -109,10 +117,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
-            Text(
-              '@${user['username']}',
-              style: const TextStyle(color: Colors.grey),
-            ),
+            if (user['username'] != null)
+              Text(
+                '@${user['username']}',
+                style: const TextStyle(color: Colors.grey),
+              ),
             if (user['email'] != null) ...[
               const SizedBox(height: 6),
               Text(user['email'], style: const TextStyle(color: Colors.grey)),
@@ -161,7 +170,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _actionsSection() {
     return Column(
       children: [
-        PrimaryButton(label: 'Create Resume', onTap: () {}),
+        PrimaryButton(
+          label: 'Create Resume',
+          onTap: () {
+            // TODO: navigate to resume builder
+          },
+        ),
         const SizedBox(height: 12),
         OutlinedButton(
           onPressed: _confirmLogout,
@@ -215,6 +229,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
     ).showSnackBar(const SnackBar(content: Text('Logged out successfully')));
 
-    widget.onLogout(); // parent rebuilds & shows login
+    widget.onLogout();
   }
 }

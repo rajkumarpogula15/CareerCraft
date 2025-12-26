@@ -51,7 +51,7 @@ router.get('/callback', async (req, res) => {
 
     const gh = ghUserRes.data;
 
-    // ✅ CREATE OR UPDATE USER (IMPORTANT FIX)
+    // ✅ CREATE OR UPDATE USER
     const user = await User.findOneAndUpdate(
       { githubId: gh.id },
       {
@@ -61,7 +61,6 @@ router.get('/callback', async (req, res) => {
         avatar: gh.avatar_url,
         email: gh.email,
 
-        // 🔥 GitHub stats (THIS FIXES 0 FOLLOWERS ISSUE)
         public_repos: gh.public_repos,
         followers: gh.followers,
         following: gh.following,
@@ -71,17 +70,15 @@ router.get('/callback', async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // 🔐 Create JWT for app auth
+    // 🔐 Create JWT
     const jwtToken = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    // 📱 Deep link back to Flutter app
+    // 📱 Deep link back to Flutter
     res.redirect(`careercraft://login-success?token=${jwtToken}`);
-    // res.json({ jwt: jwtToken });
-
   } catch (err) {
     console.error('GitHub OAuth error:', err);
     res.status(500).send('GitHub login failed');
@@ -90,19 +87,26 @@ router.get('/callback', async (req, res) => {
 
 /**
  * FETCH REPOSITORIES (JWT + GitHub)
+ * ✅ FIXED: returns updated_at + has_readme
  */
 router.get('/repos', requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const reposRes = await axios.get('https://api.github.com/user/repos', {
-      headers: {
-        Authorization: `Bearer ${user.githubAccessToken}`,
-        Accept: 'application/vnd.github+json',
-      },
-      params: { per_page: 50, sort: 'updated' },
-    });
+    const reposRes = await axios.get(
+      'https://api.github.com/user/repos',
+      {
+        headers: {
+          Authorization: `Bearer ${user.githubAccessToken}`,
+          Accept: 'application/vnd.github+json',
+        },
+        params: {
+          per_page: 50,
+          sort: 'updated',
+        },
+      }
+    );
 
     res.json(
       reposRes.data.map(repo => ({
@@ -111,10 +115,16 @@ router.get('/repos', requireAuth, async (req, res) => {
         description: repo.description,
         private: repo.private,
         html_url: repo.html_url,
+
+        // 🔥 REQUIRED FOR SMART SUGGESTIONS
+        updated_at: repo.updated_at,
+
+        // 🔍 Best available approximation
+        has_readme: !!repo.has_wiki || !!repo.description,
       }))
     );
   } catch (err) {
-    console.error(err);
+    console.error('Repo fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch repos' });
   }
 });

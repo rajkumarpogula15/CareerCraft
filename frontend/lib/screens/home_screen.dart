@@ -96,7 +96,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(20), // ✅ content padding only
+      padding: const EdgeInsets.fromLTRB(
+        12,
+        2,
+        12,
+        2,
+      ), // ✅ content padding only
       child: AppState.isLoggedIn
           ? (_loadingProfile
                 ? const Center(child: CircularProgressIndicator())

@@ -95,7 +95,7 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
           },
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 4),
 
         /* =========================
            RECENT ACTIVITY
@@ -126,7 +126,7 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
           },
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 4),
       ],
     );
   }

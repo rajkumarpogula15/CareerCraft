@@ -9,14 +9,12 @@ const User = require('../models/User');
 const { fetchRepoFiles } = require('../utils/githubRepoReader');
 const { buildRepoContext } = require('../utils/repoContext');
 const { resolveRepo } = require('../utils/resolveRepo');
-const logActivity = require('../utils/logActivity'); // ✅ ADD THIS
+const logActivity = require('../utils/logActivity');
 
 const router = express.Router();
 
-/**
- * CREATE / GET SESSION
- * ❌ No activity logging here (setup-only)
- */
+/* ---------------- SESSION ---------------- */
+
 router.post('/session', requireAuth, async (req, res) => {
   try {
     const { repoOwner, repoName } = req.body;
@@ -37,14 +35,12 @@ router.post('/session', requireAuth, async (req, res) => {
 
     res.json(session);
   } catch (err) {
-    console.error('[CHAT] Session error:', err);
     res.status(500).json({ error: 'Failed to create session' });
   }
 });
 
-/**
- * SEND MESSAGE (REPO + MEMORY + GEMINI)
- */
+/* ---------------- MESSAGE ---------------- */
+
 router.post('/message', requireAuth, async (req, res) => {
   try {
     const { sessionId, message } = req.body;
@@ -57,7 +53,6 @@ router.post('/message', requireAuth, async (req, res) => {
       });
     }
 
-    // 🔐 Load user + GitHub token
     const user = await User.findById(req.user.userId);
     if (!user?.githubAccessToken) {
       return res.json({
@@ -66,21 +61,15 @@ router.post('/message', requireAuth, async (req, res) => {
       });
     }
 
-    const githubToken = user.githubAccessToken;
-
-    // Save user message
     await ChatMessage.create({
       sessionId,
       role: 'user',
       content: message,
     });
 
-    /**
-     * Resolve repository
-     */
     let repo;
     try {
-      repo = await resolveRepo(githubToken, session.repoName);
+      repo = await resolveRepo(user.githubAccessToken, session.repoName);
     } catch {
       return res.json({
         reply:
@@ -88,23 +77,14 @@ router.post('/message', requireAuth, async (req, res) => {
       });
     }
 
-    /**
-     * Fetch repo files
-     */
     const repoFiles = await fetchRepoFiles(
       repo.owner.login,
       repo.name,
-      githubToken
+      user.githubAccessToken
     );
 
-    /**
-     * Build repo-aware context
-     */
     const repoContext = buildRepoContext(repoFiles, message);
 
-    /**
-     * Load previous chat (memory)
-     */
     const history = await ChatMessage.find({ sessionId })
       .sort({ createdAt: 1 })
       .limit(10);
@@ -114,27 +94,20 @@ router.post('/message', requireAuth, async (req, res) => {
       parts: [{ text: m.content }],
     }));
 
-    /**
-     * SYSTEM PROMPT
-     */
     const systemPrompt = `
 You are a STRICT repository-specific senior developer assistant.
 
 Repository context:
 ${repoContext}
 
-RULES (MANDATORY):
+RULES:
 - Answer ONLY using repository content above
 - ALWAYS reference file names
-- Maintain conversational context
 - NEVER guess or hallucinate
 - If not found, reply EXACTLY:
   "The provided repository context does not contain this implementation."
 `;
 
-    /**
-     * Send to Gemini
-     */
     const geminiRes = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL}:generateContent`,
       {
@@ -160,17 +133,12 @@ RULES (MANDATORY):
       geminiRes.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
       'The provided repository context does not contain this implementation.';
 
-    // Save assistant reply
     await ChatMessage.create({
       sessionId,
       role: 'assistant',
       content: reply,
     });
 
-    /**
-     * ✅ LOG ACTIVITY: REPO CHAT
-     * Logged ONLY after a successful assistant reply
-     */
     await logActivity({
       userId: req.user.userId,
       type: 'repo_chat',
@@ -179,8 +147,7 @@ RULES (MANDATORY):
     });
 
     res.json({ reply });
-  } catch (err) {
-    console.error('[CHAT] Error:', err);
+  } catch {
     res.status(500).json({
       reply:
         'The provided repository context does not contain this implementation.',
@@ -188,10 +155,8 @@ RULES (MANDATORY):
   }
 });
 
-/**
- * FETCH HISTORY
- * ❌ No activity logging (read-only)
- */
+/* ---------------- HISTORY ---------------- */
+
 router.get('/history/:sessionId', requireAuth, async (req, res) => {
   try {
     const messages = await ChatMessage.find({

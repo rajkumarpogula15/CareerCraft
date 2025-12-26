@@ -164,10 +164,10 @@ class ChatBubble extends StatelessWidget {
   Widget _codeBlock(String code) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xFF020617),
+        color: const Color.fromARGB(255, 214, 215, 221),
         borderRadius: BorderRadius.circular(12),
       ),
       child: SelectableText.rich(

@@ -1,138 +1,119 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'footer/social_button.dart';
+import 'footer/footer_link.dart';
+import 'footer/privacy.dart';
+import 'footer/terms.dart';
+import 'footer/faqs.dart';
+import 'footer/contact_us.dart';
+import 'footer/blog.dart';
 
 class HomeFooter extends StatelessWidget {
   const HomeFooter({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLowest,
-        border: Border(
-          top: BorderSide(color: theme.dividerColor.withOpacity(0.6)),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Brand / Identity
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.auto_awesome,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                "CareerCraft",
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Links
-          Wrap(
-            spacing: 20,
-            runSpacing: 12,
-            alignment: WrapAlignment.center,
-            children: [
-              _FooterLink(label: "Contact"),
-              _FooterLink(label: "FAQs"),
-              _FooterLink(label: "Privacy"),
-              _FooterLink(label: "Terms"),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Social / Actions
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _FooterIcon(icon: Icons.code_rounded, onTap: () {}),
-              _FooterIcon(icon: Icons.alternate_email_rounded, onTap: () {}),
-              _FooterIcon(icon: Icons.work_outline_rounded, onTap: () {}),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Meta
-          Text(
-            "© 2025 CareerCraft · v1.0.0",
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
+  Future<void> _launchUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      throw 'Could not launch $url';
+    }
   }
-}
-
-class _FooterLink extends StatelessWidget {
-  final String label;
-  final VoidCallback? onTap;
-
-  const _FooterLink({required this.label, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: onTap ?? () {},
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Text(
-          label,
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FooterIcon extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _FooterIcon({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          height: 40,
-          width: 40,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icon,
-            size: 18,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+      padding: const EdgeInsets.all(2),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Text(
+              "CareerCraft",
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              "Build your career with purpose.",
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+
+            /// LINKS
+            Wrap(
+              spacing: 20,
+              children: const [
+                FooterLink(label: "Privacy", popup: PrivacyPopup()),
+                FooterLink(label: "Terms", popup: TermsPopup()),
+                FooterLink(label: "FAQs", popup: FAQsPopup()),
+                FooterLink(label: "Contact Us", popup: ContactUsPopup()),
+                FooterLink(label: "Blog", popup: BlogPopup()),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SocialButton(
+                  icon: FontAwesomeIcons.github,
+                  tooltip: "GitHub",
+                  onTap: () {
+                    _launchUrl("https://github.com/careercraft");
+                  },
+                ),
+                const SizedBox(width: 16),
+                SocialButton(
+                  icon: FontAwesomeIcons.linkedin,
+                  tooltip: "LinkedIn",
+                  onTap: () {
+                    _launchUrl("https://www.linkedin.com/in/careercraft");
+                  },
+                ),
+                const SizedBox(width: 16),
+                SocialButton(
+                  icon: FontAwesomeIcons.facebook,
+                  tooltip: "Facebook",
+                  onTap: () {
+                    _launchUrl("https://www.facebook.com/careercraft");
+                  },
+                ),
+                const SizedBox(width: 16),
+                SocialButton(
+                  icon: FontAwesomeIcons.instagram,
+                  tooltip: "Instagram",
+                  onTap: () {
+                    _launchUrl("https://www.instagram.com/careercraft");
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+            Divider(color: theme.dividerColor.withOpacity(0.3)),
+            const SizedBox(height: 6),
+            Text(
+              "© 2025 CareerCraft • v1.0.0",
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
         ),
       ),
     );

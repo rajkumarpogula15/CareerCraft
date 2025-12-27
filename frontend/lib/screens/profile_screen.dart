@@ -1,15 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:app_links/app_links.dart';
 
 import '../state/app_state.dart';
 import '../widgets/primary_button.dart';
-import '../widgets/logged_out_view.dart';
+import '../widgets/logoutView.dart';
 import '../config/app_config.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
-  final VoidCallback onLogin;
+  final VoidCallback onLogin; // triggers OAuth (browser open)
 
   const ProfileScreen({
     super.key,
@@ -23,19 +26,38 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final String backendUrl = AppConfig.backendBaseUrl;
+
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSub;
+
   bool loading = false;
+
+  // =====================================================
+  // =================== LIFECYCLE =======================
+  // =====================================================
 
   @override
   void initState() {
     super.initState();
 
     if (AppState.isLoggedIn && AppState.jwt != null) {
-      loading = true;
-      fetchProfile();
+      _loadProfile();
     }
   }
 
-  Future<void> fetchProfile() async {
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
+
+  // =====================================================
+  // ================= PROFILE FETCH =====================
+  // =====================================================
+
+  Future<void> _loadProfile() async {
+    setState(() => loading = true);
+
     try {
       final res = await http.get(
         Uri.parse('$backendUrl/auth/github/profile'),
@@ -47,9 +69,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (res.statusCode == 200) {
         AppState.user = json.decode(res.body);
+      } else {
+        AppState.user = null;
       }
-    } catch (_) {
-      // ignore errors silently
+    } catch (e) {
+      debugPrint('❌ Profile load error: $e');
+      AppState.user = null;
     } finally {
       if (mounted) {
         setState(() => loading = false);
@@ -57,11 +82,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // =====================================================
+  // =================== UI ==============================
+  // =====================================================
+
   @override
   Widget build(BuildContext context) {
-    // 🔒 NOT LOGGED IN
+    // 🔒 NOT LOGGED IN → show LoggedOutView (no login button now)
     if (!AppState.isLoggedIn) {
-      return LoggedOutView(onLogin: widget.onLogin);
+      return const LoggedOutView();
     }
 
     // ⏳ LOADING
@@ -71,12 +100,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final user = AppState.user;
 
-    // ❌ FAILED
+    // ❌ ERROR
     if (user == null) {
       return const Center(child: Text('Failed to load profile'));
     }
 
-    // ✅ PROFILE
+    // ✅ PROFILE VIEW
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -92,7 +121,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ---------------- UI ----------------
+  // =====================================================
+  // ================= PROFILE UI ========================
+  // =====================================================
 
   Widget _profileHeader(Map user) {
     return Card(
@@ -116,16 +147,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               user['name'] ?? 'No Name',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4),
             if (user['username'] != null)
               Text(
                 '@${user['username']}',
                 style: const TextStyle(color: Colors.grey),
               ),
-            if (user['email'] != null) ...[
-              const SizedBox(height: 6),
+            if (user['email'] != null)
               Text(user['email'], style: const TextStyle(color: Colors.grey)),
-            ],
           ],
         ),
       ),
@@ -145,7 +173,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _statCard(String label, int value) {
     return Expanded(
       child: Card(
-        elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -170,30 +197,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _actionsSection() {
     return Column(
       children: [
-        PrimaryButton(
-          label: 'Create Resume',
-          onTap: () {
-            // TODO: navigate to resume builder
-          },
-        ),
+        PrimaryButton(label: 'Create Resume', onTap: () {}),
         const SizedBox(height: 12),
-        OutlinedButton(
-          onPressed: _confirmLogout,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.red,
-            side: const BorderSide(color: Colors.red),
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: const Text('Logout'),
-        ),
+        OutlinedButton(onPressed: _confirmLogout, child: const Text('Logout')),
       ],
     );
   }
 
-  // ---------------- LOGOUT ----------------
+  // =====================================================
+  // ================= LOGOUT ============================
+  // =====================================================
 
   void _confirmLogout() {
     showDialog(
@@ -224,10 +237,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       AppState.jwt = null;
       AppState.user = null;
     });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Logged out successfully')));
 
     widget.onLogout();
   }

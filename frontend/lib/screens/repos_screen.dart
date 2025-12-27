@@ -7,6 +7,7 @@ import '../widgets/repo_card.dart';
 import '../config/app_config.dart';
 import '../services/repository_service.dart';
 import '../models/favourite_repo.dart';
+import '../widgets/logoutView.dart'; // 👈 ADD THIS
 
 class ReposScreen extends StatefulWidget {
   const ReposScreen({Key? key}) : super(key: key);
@@ -23,8 +24,11 @@ class _ReposScreenState extends State<ReposScreen> {
   @override
   void initState() {
     super.initState();
+
     if (AppState.isLoggedIn) {
       _loadData();
+    } else {
+      loading = false;
     }
   }
 
@@ -49,28 +53,38 @@ class _ReposScreenState extends State<ReposScreen> {
       debugPrint('❌ Failed to load repos: $e');
     }
 
-    setState(() => loading = false);
+    if (mounted) {
+      setState(() => loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 🚫 NOT LOGGED IN → SHOW LOGGED OUT VIEW
     if (!AppState.isLoggedIn) {
-      return const Center(child: Text('Login to view repositories'));
+      return const Scaffold(body: LoggedOutView());
     }
 
+    // ⏳ LOADING
     if (loading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
     }
 
+    // 📭 EMPTY STATE
     if (repos.isEmpty) {
-      return const Center(
-        child: Text(
-          'No repositories found',
-          style: TextStyle(color: Colors.grey),
+      return const Scaffold(
+        body: Center(
+          child: Text(
+            'No repositories found',
+            style: TextStyle(color: Colors.grey),
+          ),
         ),
       );
     }
 
+    // ✅ MAIN CONTENT
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
@@ -94,7 +108,6 @@ class _ReposScreenState extends State<ReposScreen> {
 
               final int repoId = repo['id'];
 
-              /// ✅ Padding added here
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,

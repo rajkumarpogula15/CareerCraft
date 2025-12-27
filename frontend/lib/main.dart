@@ -5,9 +5,11 @@ import 'package:app_links/app_links.dart';
 import 'screens/home_screen.dart';
 import 'screens/repos_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/mock_interview_screen.dart';
 import 'state/app_state.dart';
 import 'services/auth_service.dart';
 import 'widgets/top_bar.dart';
+import 'widgets/bottom_bar.dart';
 
 void main() {
   runApp(const CareerCraftApp());
@@ -29,10 +31,8 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
   late final List<Widget> screens = [
     HomeScreen(onLogin: _onLogin),
     const ReposScreen(),
-    ProfileScreen(
-      onLogout: _refresh,
-      onLogin: _onLogin, // ✅ FIX: REQUIRED PARAM
-    ),
+    const MockInterviewScreen(),
+    ProfileScreen(onLogout: _refresh, onLogin: _onLogin),
   ];
 
   @override
@@ -42,7 +42,6 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
     _initDeepLinks();
   }
 
-  /// Restore JWT from secure storage
   Future<void> _restoreSession() async {
     final token = await AuthService.getToken();
     if (token != null) {
@@ -52,11 +51,9 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
     }
   }
 
-  /// Handle deep links from GitHub OAuth
   void _initDeepLinks() async {
     final uri = await _appLinks.getInitialLink();
     _handleUri(uri);
-
     _linkSub = _appLinks.uriLinkStream.listen(_handleUri);
   }
 
@@ -72,18 +69,14 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
       AppState.jwt = token;
       AppState.isLoggedIn = true;
 
-      setState(() {
-        index = 0; // go back to Home after login
-      });
+      setState(() => index = 0);
     }
   }
 
-  /// Called after login or logout to rebuild UI
   void _refresh() {
     setState(() {});
   }
 
-  /// Trigger GitHub OAuth (used by Home & Profile logged-out views)
   void _onLogin() {
     AuthService.loginWithGitHub();
   }
@@ -106,18 +99,9 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
       home: Scaffold(
         appBar: const TopBar(),
         body: screens[index],
-        bottomNavigationBar: BottomNavigationBar(
+        bottomNavigationBar: BottomBar(
           currentIndex: index,
           onTap: (value) => setState(() => index = value),
-          selectedItemColor: const Color(0xFF4F46E5),
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.folder),
-              label: 'My Repos',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-          ],
         ),
       ),
     );

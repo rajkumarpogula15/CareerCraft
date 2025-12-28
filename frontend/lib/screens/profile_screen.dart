@@ -9,6 +9,7 @@ import '../state/app_state.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/logoutView.dart';
 import '../config/app_config.dart';
+import 'resume_builder_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -197,7 +198,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _actionsSection() {
     return Column(
       children: [
-        PrimaryButton(label: 'Create Resume', onTap: () {}),
+        PrimaryButton(
+          label: 'Create Resume',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ResumeBuilderScreen()),
+            );
+          },
+        ),
+
         const SizedBox(height: 12),
         OutlinedButton(onPressed: _confirmLogout, child: const Text('Logout')),
       ],

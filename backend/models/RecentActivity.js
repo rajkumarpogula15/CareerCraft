@@ -14,6 +14,8 @@ const RecentActivitySchema = new mongoose.Schema(
         'readme_generated',
         'repo_chat',
         'repo_favourite',
+        'resume_points_generated',
+        'social_post_generated',
         'repo_opened',
       ],
       required: true,

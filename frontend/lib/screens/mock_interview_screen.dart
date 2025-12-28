@@ -2,19 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../state/app_state.dart';
 import '../widgets/logoutView.dart';
+import 'interview_setup_screen.dart';
 
 class MockInterviewScreen extends StatelessWidget {
   const MockInterviewScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 🚫 NOT LOGGED IN
     if (!AppState.isLoggedIn) {
       return const Scaffold(body: LoggedOutView());
     }
 
-    // ✅ LOGGED IN VIEW
     return Scaffold(
+      appBar: AppBar(title: const Text('Mock Interview')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -28,7 +28,7 @@ class MockInterviewScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Practice real interview questions, improve confidence, and track your performance.',
+              'Practice real interview questions based on your GitHub projects.',
             ),
             const SizedBox(height: 24),
             Card(
@@ -36,9 +36,14 @@ class MockInterviewScreen extends StatelessWidget {
               child: ListTile(
                 leading: const Icon(Icons.play_circle_fill),
                 title: const Text('Start New Mock Interview'),
-                subtitle: const Text('Technical + HR questions'),
+                subtitle: const Text('Project-based, adaptive'),
                 onTap: () {
-                  // TODO: Navigate to mock interview flow
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const InterviewSetupScreen(),
+                    ),
+                  );
                 },
               ),
             ),

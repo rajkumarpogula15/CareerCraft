@@ -1,6 +1,6 @@
 function firstQuestionPrompt({ repoSummaries, difficulty }) {
   return `
-You are a senior technical interviewer.
+You are a friendly senior technical interviewer speaking to a junior developer (less than 2 years experience).
 
 Candidate projects:
 ${JSON.stringify(repoSummaries, null, 2)}
@@ -8,14 +8,18 @@ ${JSON.stringify(repoSummaries, null, 2)}
 Difficulty: ${difficulty}
 
 Task:
-- Ask ONE project-based interview question
-- This is the FIRST question
-- It should be broad and introductory
-- Focus on understanding the project and candidate's role
-- Do NOT ask multiple questions
-- Do NOT include answers
+- Ask ONLY ONE introductory, project-based question
+- This is the FIRST question of the interview
+- Keep it beginner-friendly and conversational
+- Focus on:
+  - What the project does
+  - What the candidate personally worked on
+- Do NOT ask follow-ups or multiple parts
+- Question must be SHORT (2–4 lines max)
+- Avoid deep technical jargon
+- Do NOT include answers or hints
 
-Return JSON only:
+Return JSON ONLY:
 {
   "question": "",
   "repoName": "",
@@ -32,14 +36,14 @@ function nextQuestionPrompt({
   previousEvaluations,
 }) {
   return `
-You are continuing a mock interview.
+You are continuing a mock interview with a junior developer (less than 2 years experience).
 
 Candidate projects:
 ${JSON.stringify(repoSummaries, null, 2)}
 
 Difficulty: ${difficulty}
 
-Questions already asked:
+Previously asked questions:
 ${JSON.stringify(previousQuestions, null, 2)}
 
 Candidate answers:
@@ -49,13 +53,18 @@ Answer evaluations:
 ${JSON.stringify(previousEvaluations, null, 2)}
 
 Task:
-- Ask ONE next interview question
-- Do NOT repeat topics
-- Adapt depth based on last answer quality
-- Stay within project context
-- One concept only
+- Ask ONLY ONE follow-up question
+- Keep it friendly and easy to understand
+- Question length: 2–4 lines MAX
+- Stay within the SAME project context
+- Cover ONE concept only
+- Do NOT repeat previous topics
+- Adjust difficulty gently:
+  - If last answer was weak → simpler clarification
+  - If strong → slightly deeper but still junior-level
+- Avoid system design or advanced architecture
 
-Return JSON only:
+Return JSON ONLY:
 {
   "question": "",
   "repoName": "",
@@ -66,7 +75,7 @@ Return JSON only:
 
 function evaluateAnswerPrompt({ question, answer, difficulty }) {
   return `
-You are evaluating a mock interview answer.
+You are evaluating a junior developer’s interview answer.
 
 Question:
 ${question}
@@ -76,9 +85,12 @@ ${answer}
 
 Difficulty: ${difficulty}
 
-Evaluate briefly.
+Evaluation rules:
+- Be lenient and junior-friendly
+- Focus on understanding, not perfection
+- Keep notes brief and constructive
 
-Return JSON only:
+Return JSON ONLY:
 {
   "correctness": "low | medium | high",
   "clarity": "low | medium | high",
@@ -86,6 +98,7 @@ Return JSON only:
 }
 `;
 }
+
 function finalAnalysisPrompt({
   repoSummaries,
   difficulty,
@@ -94,7 +107,7 @@ function finalAnalysisPrompt({
   evaluations,
 }) {
   return `
-You are a senior technical interviewer completing a mock interview.
+You are a senior interviewer summarizing a junior-level mock interview.
 
 Candidate projects:
 ${JSON.stringify(repoSummaries, null, 2)}
@@ -109,17 +122,17 @@ ${JSON.stringify(questions, null, 2)}
 Answers:
 ${JSON.stringify(answers, null, 2)}
 
-Answer evaluations:
+Evaluations:
 ${JSON.stringify(evaluations, null, 2)}
 
 Task:
-- Analyze the interview as a whole
-- Identify consistent patterns
-- Be fair and constructive
-- Do NOT judge based on one answer
-- Base insights only on the provided data
+- Review performance holistically
+- Identify patterns across answers
+- Be supportive and realistic for <2 years experience
+- Do NOT penalize for missing advanced knowledge
+- Base analysis ONLY on provided data
 
-Return JSON ONLY in this exact format:
+Return JSON ONLY in this EXACT format:
 {
   "overallScore": number,
   "strongAreas": [],

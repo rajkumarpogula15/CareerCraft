@@ -15,17 +15,70 @@ class ProjectResumeData {
 }
 
 class ResumeDraft {
-  /// Profile fields like phone, location, linkedin, portfolio
+  // ================= PROFILE =================
   Map<String, dynamic> profile = {};
 
-  /// List of skills
+  // ================= SUMMARY =================
+  String summary = '';
+
+  // ================= SKILLS =================
   List<String> skills = [];
 
-  /// ✅ FIXED: education must allow dynamic values
-  /// degree, institution, year are strings,
-  /// but JSON decoding requires Map<String, dynamic>
+  // ================= EDUCATION =================
   List<Map<String, dynamic>> education = [];
 
-  /// Projects mapped by repo name
+  // ================= EXPERIENCE =================
+  List<Map<String, dynamic>> experience = [];
+
+  // ================= ACHIEVEMENTS =================
+  List<String> achievements = [];
+
+  // ================= PROJECTS =================
   Map<String, ProjectResumeData> projects = {};
+
+  // ================= HELPERS =================
+
+  /// Converts draft to a savable JSON structure
+  Map<String, dynamic> toJson() {
+    return {
+      'profile': profile,
+      'summary': summary,
+      'skills': skills,
+      'education': education,
+      'experience': experience,
+      'achievements': achievements,
+      'projects': projects.entries.map((e) => e.value.toJson(e.key)).toList(),
+    };
+  }
+
+  /// Hydrates draft from backend data
+  void loadFromJson(Map<String, dynamic> data) {
+    profile = Map<String, dynamic>.from(data['profile'] ?? {});
+    summary = data['summary'] ?? '';
+
+    skills
+      ..clear()
+      ..addAll(List<String>.from(data['skills'] ?? []));
+
+    education
+      ..clear()
+      ..addAll(List<Map<String, dynamic>>.from(data['education'] ?? []));
+
+    experience
+      ..clear()
+      ..addAll(List<Map<String, dynamic>>.from(data['experience'] ?? []));
+
+    achievements
+      ..clear()
+      ..addAll(List<String>.from(data['achievements'] ?? []));
+
+    projects.clear();
+    final projectList = data['projects'] as List<dynamic>? ?? [];
+    for (final p in projectList) {
+      projects[p['repoName']] = ProjectResumeData(
+        included: p['included'] ?? false,
+        bulletPoints: List<String>.from(p['bulletPoints'] ?? []),
+      );
+    }
+  }
 }

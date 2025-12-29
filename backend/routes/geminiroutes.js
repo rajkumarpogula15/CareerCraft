@@ -110,6 +110,36 @@ const fetchFolderStructure = async (token, owner, repo) => {
 };
 
 /**
+ * Fetch README.md (non-fatal)
+ */
+const fetchReadme = async (token, owner, repo) => {
+  try {
+    const res = await githubGet(
+      `${GITHUB_API}/repos/${owner}/${repo}/readme`,
+      token
+    );
+
+    return Buffer.from(res.data.content, 'base64').toString('utf-8');
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Sanitize README for AI safety
+ */
+const sanitizeReadme = (readme, maxChars = 4000) => {
+  if (!readme) return 'Not available';
+
+  return readme
+    .replace(/!\[.*?\]\(.*?\)/g, '') // images
+    .replace(/```[\s\S]*?```/g, '')  // code blocks
+    .replace(/\n{3,}/g, '\n\n')
+    .slice(0, maxChars)
+    .trim();
+};
+
+/**
  * Gemini generator with retry + backoff
  */
 const generateWithGemini = async prompt => {
@@ -143,8 +173,9 @@ const generateWithGemini = async prompt => {
       const normalized = normalizeAxiosError(err);
 
       if (normalized.status === 429 && attempt < GEMINI_MAX_RETRIES - 1) {
-        const delay = 1000 * Math.pow(2, attempt);
-        await new Promise(r => setTimeout(r, delay));
+        await new Promise(r =>
+          setTimeout(r, 1000 * Math.pow(2, attempt))
+        );
         attempt++;
         continue;
       }
@@ -239,6 +270,12 @@ router.post('/generate-social-post', requireAuth, async (req, res) => {
     }
 
     const repo = await resolveRepo(user.githubAccessToken, repoName);
+    const readmeRaw = await fetchReadme(
+      user.githubAccessToken,
+      repo.owner.login,
+      repo.name
+    );
+    const readme = sanitizeReadme(readmeRaw);
 
     const cacheKey = getCacheKey(
       'social',
@@ -261,11 +298,15 @@ Project:
 - ${repo.description || 'N/A'}
 - ${repo.language || 'Unknown'}
 
+README (source of truth):
+${readme}
+
 Rules:
+- Use ONLY information present above
 - Professional & engaging
 - 1–2 emojis max
-- No hallucinations
 - Plain text only
+- No assumptions
 `.trim();
 
     const post = await generateWithGemini(prompt);
@@ -308,23 +349,49 @@ router.post('/generate-resume-points', requireAuth, async (req, res) => {
     }
 
     const repo = await resolveRepo(user.githubAccessToken, repoName);
+    const readmeRaw = await fetchReadme(
+      user.githubAccessToken,
+      repo.owner.login,
+      repo.name
+    );
+    const readme = sanitizeReadme(readmeRaw);
 
     const prompt = `
-You are a senior software engineer and ATS resume expert.
+You are a senior software engineer and ATS resume optimization expert.
 
-Generate 4–6 ATS-friendly resume bullet points.
+Generate EXACTLY 2–4 resume bullet points optimized for:
+- Applicant Tracking Systems (ATS)
+- Recruiter keyword scanning
+- Technical interview screening
 
-Project:
-- ${repo.name}
-- ${repo.description || 'N/A'}
-- ${repo.language || 'Unknown'}
+Use ONLY the information explicitly present below.
 
-Rules:
-- Action verbs
+Project Context:
+- Name: ${repo.name}
+- Description: ${repo.description || 'N/A'}
+- Primary Language / Stack: ${repo.language || 'Unknown'}
+
+README (author-written source of truth):
+${readme}
+
+Instructions:
+- Focus on skills, tools, technologies, and responsibilities mentioned
+- Use strong action verbs (e.g., Designed, Implemented, Built, Optimized)
+- Include relevant technical keywords naturally (frameworks, APIs, databases, tooling, architecture)
+- Emphasize impact, scalability, performance, security, or reliability ONLY if stated
+- Prefer concise, high-signal bullets (1 line each)
+
+Hard Rules:
+- Bullet points only (no headings, no explanations)
 - No emojis
-- Bullet points only
-- No hallucinations
+- No filler phrases (e.g., "worked on", "responsible for")
+- No assumptions, no inferred features, no invented metrics
+- If information is limited, stay high-level and factual
+
+Output:
+- 2–4 bullet points, ATS-ready, resume-safe
 `.trim();
+
 
     const points = await generateWithGemini(prompt);
 

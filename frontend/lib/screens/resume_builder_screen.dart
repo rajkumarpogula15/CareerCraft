@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/resume_draft.dart';
 import '../services/resume_api.dart';
 import '../services/resume/github_api.dart';
+import '../services/resume/profile_api.dart';
 import '../widgets/resume/repo_card.dart';
 import 'resume_preview_screen.dart';
 
@@ -19,14 +21,28 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
   bool loading = true;
   bool reposLoading = true;
 
+  // ================= STATIC CONTROLLERS =================
+
+  final _nameCtrl = TextEditingController();
+  final _titleCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
   final _linkedinCtrl = TextEditingController();
   final _portfolioCtrl = TextEditingController();
+  final _summaryCtrl = TextEditingController();
   final _skillCtrl = TextEditingController();
+  final _achievementCtrl = TextEditingController();
+
+  // ================= DYNAMIC CONTROLLERS =================
+
+  final Map<String, TextEditingController> _eduCtrls = {};
+  final Map<String, TextEditingController> _expCtrls = {};
 
   List<Map<String, dynamic>> repos = [];
   final Map<String, bool> generating = {};
+
+  // ================= LIFECYCLE =================
 
   @override
   void initState() {
@@ -36,20 +52,41 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
 
   @override
   void dispose() {
+    for (final c in _eduCtrls.values) {
+      c.dispose();
+    }
+    for (final c in _expCtrls.values) {
+      c.dispose();
+    }
+
+    _nameCtrl.dispose();
+    _titleCtrl.dispose();
+    _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _locationCtrl.dispose();
     _linkedinCtrl.dispose();
     _portfolioCtrl.dispose();
+    _summaryCtrl.dispose();
     _skillCtrl.dispose();
+    _achievementCtrl.dispose();
     super.dispose();
   }
 
   // ================= LOAD =================
 
   Future<void> _loadInitialData() async {
-    await Future.wait([_loadRepos(), _loadSavedResume()]);
-
+    await Future.wait([_loadProfile(), _loadRepos(), _loadSavedResume()]);
     if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final profile = await ProfileApi.fetchProfile();
+      if (profile == null) return;
+
+      _nameCtrl.text = profile['name'] ?? '';
+      _emailCtrl.text = profile['email'] ?? '';
+    } catch (_) {}
   }
 
   Future<void> _loadRepos() async {
@@ -61,11 +98,16 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
     final data = await ResumeApi.fetchResume();
     if (data == null) return;
 
+    _eduCtrls.clear();
+    _expCtrls.clear();
+
     final profile = Map<String, dynamic>.from(data['profile'] ?? {});
+    _titleCtrl.text = profile['title'] ?? '';
     _phoneCtrl.text = profile['phone'] ?? '';
     _locationCtrl.text = profile['location'] ?? '';
     _linkedinCtrl.text = profile['linkedin'] ?? '';
     _portfolioCtrl.text = profile['portfolio'] ?? '';
+    _summaryCtrl.text = data['summary'] ?? '';
 
     draft.skills
       ..clear()
@@ -73,11 +115,15 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
 
     draft.education
       ..clear()
-      ..addAll(
-        (data['education'] as List<dynamic>? ?? []).map(
-          (e) => Map<String, dynamic>.from(e),
-        ),
-      );
+      ..addAll(List<Map<String, dynamic>>.from(data['education'] ?? []));
+
+    draft.experience
+      ..clear()
+      ..addAll(List<Map<String, dynamic>>.from(data['experience'] ?? []));
+
+    draft.achievements
+      ..clear()
+      ..addAll(List<String>.from(data['achievements'] ?? []));
 
     final projects = data['projects'] as List<dynamic>? ?? [];
     for (final p in projects) {
@@ -86,29 +132,70 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
         bulletPoints: List<String>.from(p['bulletPoints'] ?? []),
       );
     }
+
+    setState(() {});
   }
 
   // ================= SAVE =================
 
   Future<void> _saveResume() async {
-    draft.profile['phone'] = _phoneCtrl.text.trim();
-    draft.profile['location'] = _locationCtrl.text.trim();
-    draft.profile['linkedin'] = _linkedinCtrl.text.trim();
-    draft.profile['portfolio'] = _portfolioCtrl.text.trim();
+    draft.summary = _summaryCtrl.text.trim();
+
+    draft.profile
+      ..['name'] = _nameCtrl.text.trim()
+      ..['title'] = _titleCtrl.text.trim()
+      ..['email'] = _emailCtrl.text.trim()
+      ..['phone'] = _phoneCtrl.text.trim()
+      ..['location'] = _locationCtrl.text.trim()
+      ..['linkedin'] = _linkedinCtrl.text.trim()
+      ..['portfolio'] = _portfolioCtrl.text.trim();
 
     await ResumeApi.saveResume({
       'profile': draft.profile,
+      'summary': draft.summary,
       'skills': draft.skills,
       'education': draft.education,
+      'experience': draft.experience,
+      'achievements': draft.achievements,
       'projects': draft.projects.entries
           .map((e) => e.value.toJson(e.key))
           .toList(),
     });
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Resume saved successfully')));
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Resume saved')));
+    }
+  }
+
+  // ================= HELPERS =================
+
+  TextEditingController _bindCtrl(
+    Map<String, TextEditingController> store,
+    String key,
+    String value,
+  ) {
+    return store.putIfAbsent(key, () => TextEditingController(text: value));
+  }
+
+  Widget _boundInput({
+    required String label,
+    required Map map,
+    required String mapKey,
+    required String ctrlKey,
+    required Map<String, TextEditingController> store,
+  }) {
+    final ctrl = _bindCtrl(store, ctrlKey, map[mapKey]?.toString() ?? '');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: ctrl,
+        decoration: InputDecoration(labelText: label),
+        onChanged: (v) => map[mapKey] = v,
+      ),
+    );
   }
 
   // ================= UI =================
@@ -126,14 +213,12 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
           IconButton(icon: const Icon(Icons.save), onPressed: _saveResume),
           IconButton(
             icon: const Icon(Icons.visibility),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ResumePreviewScreen(draft: draft),
-                ),
-              );
-            },
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ResumePreviewScreen(draft: draft),
+              ),
+            ),
           ),
         ],
       ),
@@ -142,16 +227,31 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionTitle('Basic Information'),
-            _profileSection(),
-            const SizedBox(height: 24),
+            _sectionTitle('Profile'),
+            _input('Full Name', _nameCtrl),
+            _input('Professional Title', _titleCtrl),
+            _input('Email', _emailCtrl),
+            _input('Phone', _phoneCtrl),
+            _input('Location', _locationCtrl),
+            _input('LinkedIn', _linkedinCtrl),
+            _input('Portfolio', _portfolioCtrl),
+
+            _sectionTitle('Professional Summary'),
+            TextField(controller: _summaryCtrl, maxLines: 4),
+
             _sectionTitle('Skills'),
             _skillsSection(),
-            const SizedBox(height: 24),
+
+            _sectionTitle('Experience'),
+            _experienceSection(),
+
             _sectionTitle('Education'),
             _educationSection(),
-            const SizedBox(height: 24),
-            _sectionTitle('Projects (GitHub)'),
+
+            _sectionTitle('Achievements & Certificates'),
+            _achievementSection(),
+
+            _sectionTitle('Projects'),
             _reposSection(),
           ],
         ),
@@ -160,15 +260,6 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
   }
 
   // ================= SECTIONS =================
-
-  Widget _profileSection() => Column(
-    children: [
-      _input('Phone', _phoneCtrl),
-      _input('Location', _locationCtrl),
-      _input('LinkedIn URL', _linkedinCtrl),
-      _input('Portfolio URL', _portfolioCtrl),
-    ],
-  );
 
   Widget _skillsSection() => Column(
     children: [
@@ -185,19 +276,13 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
       ),
       Row(
         children: [
-          Expanded(
-            child: TextField(
-              controller: _skillCtrl,
-              decoration: const InputDecoration(hintText: 'Add a skill'),
-            ),
-          ),
+          Expanded(child: TextField(controller: _skillCtrl)),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () {
-              final skill = _skillCtrl.text.trim();
-              if (skill.isNotEmpty) {
+              if (_skillCtrl.text.isNotEmpty) {
                 setState(() {
-                  draft.skills.add(skill);
+                  draft.skills.add(_skillCtrl.text.trim());
                   _skillCtrl.clear();
                 });
               }
@@ -208,70 +293,156 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
     ],
   );
 
-  Widget _educationSection() => Column(
+  Widget _experienceSection() => Column(
     children: [
-      ...draft.education.asMap().entries.map((e) {
+      ...draft.experience.asMap().entries.map((e) {
         final i = e.key;
-        final edu = e.value;
-
+        final exp = e.value;
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                _educationInput(
-                  'Degree',
-                  edu['degree'] ?? '',
-                  (v) => edu['degree'] = v,
+                _boundInput(
+                  label: 'Role',
+                  map: exp,
+                  mapKey: 'role',
+                  ctrlKey: 'exp_${i}_role',
+                  store: _expCtrls,
                 ),
-                _educationInput(
-                  'Institution',
-                  edu['institution'] ?? '',
-                  (v) => edu['institution'] = v,
+                _boundInput(
+                  label: 'Company',
+                  map: exp,
+                  mapKey: 'company',
+                  ctrlKey: 'exp_${i}_company',
+                  store: _expCtrls,
                 ),
-                _educationInput(
-                  'Year',
-                  edu['year'] ?? '',
-                  (v) => edu['year'] = v,
+                _boundInput(
+                  label: 'Duration',
+                  map: exp,
+                  mapKey: 'duration',
+                  ctrlKey: 'exp_${i}_duration',
+                  store: _expCtrls,
                 ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () =>
-                        setState(() => draft.education.removeAt(i)),
-                    child: const Text(
-                      'Remove',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
+                _boundInput(
+                  label: 'Description',
+                  map: exp,
+                  mapKey: 'description',
+                  ctrlKey: 'exp_${i}_description',
+                  store: _expCtrls,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: () {
+                    _expCtrls.removeWhere((k, _) => k.startsWith('exp_${i}_'));
+                    setState(() => draft.experience.removeAt(i));
+                  },
                 ),
               ],
             ),
           ),
         );
       }),
-      OutlinedButton.icon(
-        icon: const Icon(Icons.add),
-        label: const Text('Add Education'),
-        onPressed: () => setState(
-          () => draft.education.add(<String, dynamic>{
-            'degree': '',
-            'institution': '',
-            'year': '',
-          }),
+      OutlinedButton(
+        onPressed: () => setState(() => draft.experience.add({})),
+        child: const Text('Add Experience'),
+      ),
+    ],
+  );
+
+  Widget _educationSection() => Column(
+    children: [
+      ...draft.education.asMap().entries.map((e) {
+        final i = e.key;
+        final edu = e.value;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                _boundInput(
+                  label: 'Degree',
+                  map: edu,
+                  mapKey: 'degree',
+                  ctrlKey: 'edu_${i}_degree',
+                  store: _eduCtrls,
+                ),
+                _boundInput(
+                  label: 'Institution',
+                  map: edu,
+                  mapKey: 'institution',
+                  ctrlKey: 'edu_${i}_institution',
+                  store: _eduCtrls,
+                ),
+                _boundInput(
+                  label: 'Year',
+                  map: edu,
+                  mapKey: 'year',
+                  ctrlKey: 'edu_${i}_year',
+                  store: _eduCtrls,
+                ),
+                _boundInput(
+                  label: 'Percentage',
+                  map: edu,
+                  mapKey: 'Percentage',
+                  ctrlKey: 'edu_${i}_Percentage',
+                  store: _eduCtrls,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: () {
+                    _eduCtrls.removeWhere((k, _) => k.startsWith('edu_${i}_'));
+                    setState(() => draft.education.removeAt(i));
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+      OutlinedButton(
+        onPressed: () => setState(() => draft.education.add({})),
+        child: const Text('Add Education'),
+      ),
+    ],
+  );
+
+  Widget _achievementSection() => Column(
+    children: [
+      ...draft.achievements.map(
+        (a) => ListTile(
+          title: Text(a),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () => setState(() => draft.achievements.remove(a)),
+          ),
         ),
+      ),
+      Row(
+        children: [
+          Expanded(child: TextField(controller: _achievementCtrl)),
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () {
+              if (_achievementCtrl.text.isNotEmpty) {
+                setState(() {
+                  draft.achievements.add(_achievementCtrl.text.trim());
+                  _achievementCtrl.clear();
+                });
+              }
+            },
+          ),
+        ],
       ),
     ],
   );
 
   Widget _reposSection() {
-    if (reposLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (reposLoading) return const CircularProgressIndicator();
 
     return Column(
       children: repos.map((repo) {
-        final name = repo['name'] as String;
+        final name = repo['name'];
         draft.projects.putIfAbsent(name, () => ProjectResumeData());
         final project = draft.projects[name]!;
 
@@ -284,11 +455,9 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
               setState(() => project.included = !project.included),
           onGenerate: () async {
             setState(() => generating[name] = true);
-            final points = await GithubApi.generateResumePoints(name);
-            setState(() {
-              project.bulletPoints = points;
-              generating[name] = false;
-            });
+            project.bulletPoints = await GithubApi.generateResumePoints(name);
+            generating[name] = false;
+            setState(() {});
           },
           onEditPoint: (i, v) => project.bulletPoints[i] = v,
         );
@@ -296,26 +465,19 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
     );
   }
 
-  Widget _sectionTitle(String t) => Text(
-    t,
-    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  Widget _sectionTitle(String t) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Text(
+      t,
+      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    ),
   );
 
   Widget _input(String l, TextEditingController c) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.only(bottom: 8),
     child: TextField(
       controller: c,
       decoration: InputDecoration(labelText: l),
     ),
   );
-
-  Widget _educationInput(String l, String v, Function(String) onChanged) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: TextFormField(
-          initialValue: v,
-          decoration: InputDecoration(labelText: l),
-          onChanged: onChanged,
-        ),
-      );
 }

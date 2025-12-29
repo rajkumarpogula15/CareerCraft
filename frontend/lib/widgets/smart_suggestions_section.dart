@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import '../screens/repo_chat_screen.dart';
+import '../screens/interview_setup_screen.dart';
+import '../screens/resume_builder_screen.dart';
 
 /// --------------------------------------------------------------
 /// Suggestion Action Type
 /// --------------------------------------------------------------
-enum SuggestionAction { readmeGeneration, repoChat }
+enum SuggestionAction {
+  readmeGeneration,
+  repoChat,
+  mockInterview,
+  resumeBuilder,
+}
 
 /// --------------------------------------------------------------
 /// Model
@@ -41,14 +48,29 @@ class SmartSuggestionsSection extends StatelessWidget {
     required this.onGenerateReadme,
   });
 
+  /// --------------------------------------------------------------
+  /// Predefined suggestions
+  /// --------------------------------------------------------------
+  List<SmartSuggestion> get _predefinedSuggestions => const [
+    SmartSuggestion(
+      label: 'Start a mock interview',
+      action: SuggestionAction.mockInterview,
+    ),
+    SmartSuggestion(
+      label: 'Build your resume',
+      action: SuggestionAction.resumeBuilder,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final allSuggestions = [..._predefinedSuggestions, ...suggestions];
+
     debugPrint(
-      '[SmartSuggestionsSection] build | owner=$owner | count=${suggestions.length}',
+      '[SmartSuggestionsSection] build | owner=$owner | count=${allSuggestions.length}',
     );
 
-    if (suggestions.isEmpty) {
-      debugPrint('[SmartSuggestionsSection] No suggestions → hidden');
+    if (allSuggestions.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -70,11 +92,7 @@ class SmartSuggestionsSection extends StatelessWidget {
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: suggestions.map((suggestion) {
-              debugPrint(
-                '[SmartSuggestionsSection] Rendering → ${suggestion.label}',
-              );
-
+            children: allSuggestions.map((suggestion) {
               return _SuggestionChip(
                 label: suggestion.label,
                 onTap: () => _handleSuggestionTap(context, suggestion),
@@ -94,19 +112,11 @@ class SmartSuggestionsSection extends StatelessWidget {
 
     switch (suggestion.action) {
       case SuggestionAction.readmeGeneration:
-        debugPrint('[SmartSuggestionsSection] Trigger README generator');
         onGenerateReadme();
         break;
 
       case SuggestionAction.repoChat:
-        if (!suggestion.canNavigate) {
-          debugPrint('[SmartSuggestionsSection] Missing repo → abort');
-          return;
-        }
-
-        debugPrint(
-          '[SmartSuggestionsSection] Navigating → owner=$owner repo=${suggestion.repoName}',
-        );
+        if (!suggestion.canNavigate) return;
 
         Navigator.push(
           context,
@@ -114,6 +124,20 @@ class SmartSuggestionsSection extends StatelessWidget {
             builder: (_) =>
                 RepoChatScreen(owner: owner, repo: suggestion.repoName!),
           ),
+        );
+        break;
+
+      case SuggestionAction.mockInterview:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const InterviewSetupScreen()),
+        );
+        break;
+
+      case SuggestionAction.resumeBuilder:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ResumeBuilderScreen()),
         );
         break;
     }
@@ -180,16 +204,11 @@ class _SuggestionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('[_SuggestionChip] build → "$label"');
-
     final theme = Theme.of(context);
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () {
-        debugPrint('[_SuggestionChip] tapped → "$label"');
-        onTap();
-      },
+      onTap: onTap,
       child: Container(
         constraints: const BoxConstraints(minHeight: 44),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

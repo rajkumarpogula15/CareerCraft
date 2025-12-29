@@ -7,32 +7,66 @@ const router = express.Router();
 /**
  * CREATE ACTIVITY
  * - Adds a new activity
- * - Keeps only latest 10 activities per user
+ * - Keeps only latest 10 per user
+ * - Always preserves at least ONE repo_chat activity
  */
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { message, repoName, type } = req.body;
+    const userId = req.user.userId;
 
     // 1️⃣ Create new activity
     await RecentActivity.create({
-      userId: req.user.userId,
+      userId,
       message,
       repoName,
       type,
     });
 
-    // 2️⃣ Find activities exceeding the latest 10
-    const oldActivities = await RecentActivity.find({
-      userId: req.user.userId,
-    })
+    // 2️⃣ Fetch all activities (newest first)
+    const activities = await RecentActivity.find({ userId })
       .sort({ createdAt: -1 })
-      .skip(10) // everything after the 10 newest
-      .select('_id');
+      .lean();
 
-    // 3️⃣ Delete old activities
-    if (oldActivities.length > 0) {
+    // If within limit, nothing to delete
+    if (activities.length <= 10) {
+      return res.status(201).json({ success: true });
+    }
+
+    // 3️⃣ Identify repo_chat activities
+    const chatActivities = activities.filter(
+      a => a.type === 'repo_chat'
+    );
+
+    // 4️⃣ Candidates for deletion (oldest first)
+    const deletionCandidates = [...activities]
+      .reverse(); // oldest → newest
+
+    const idsToDelete = [];
+
+    for (const activity of deletionCandidates) {
+      if (activities.length - idsToDelete.length <= 10) break;
+
+      // ❌ If this is the ONLY repo_chat, skip deleting it
+      if (
+        activity.type === 'repo_chat' &&
+        chatActivities.length === 1
+      ) {
+        continue;
+      }
+
+      idsToDelete.push(activity._id);
+
+      // Track chat deletion
+      if (activity.type === 'repo_chat') {
+        chatActivities.pop();
+      }
+    }
+
+    // 5️⃣ Delete selected activities
+    if (idsToDelete.length > 0) {
       await RecentActivity.deleteMany({
-        _id: { $in: oldActivities.map(a => a._id) },
+        _id: { $in: idsToDelete },
       });
     }
 

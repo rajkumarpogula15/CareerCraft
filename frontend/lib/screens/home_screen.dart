@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:app_links/app_links.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../config/app_config.dart';
 import '../state/app_state.dart';
@@ -31,6 +32,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+
+    _initDevAutoLogin();
     _initDeepLinks();
 
     if (AppState.isLoggedIn && AppState.jwt != null && AppState.user == null) {
@@ -44,7 +47,25 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // ================= DEEP LINKS =================
+  // ================= DEV AUTO LOGIN =================
+
+  void _initDevAutoLogin() async {
+    final devAutoLogin = dotenv.env['DEV_AUTO_LOGIN'] == 'true';
+    final devJwt = dotenv.env['DEV_JWT'];
+
+    if (devAutoLogin && devJwt != null && devJwt.isNotEmpty) {
+      // Force login state
+      await AppState.saveToken(devJwt);
+
+      if (mounted) {
+        setState(() {
+          AppState.isLoggedIn = true;
+        });
+      }
+    }
+  }
+
+  // ================= DEEP LINKS (PROD LOGIN) =================
 
   void _initDeepLinks() {
     _linkSub = _appLinks.uriLinkStream.listen((uri) async {
@@ -86,6 +107,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _loadingProfile = false);
   }
 
+  // ================= LOGIN =================
+
   Future<void> _loginWithGitHub() async {
     final url = Uri.parse('${AppConfig.backendBaseUrl}/auth/github/login');
     await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -96,12 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        12,
-        2,
-        12,
-        2,
-      ), // ✅ content padding only
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 2),
       child: AppState.isLoggedIn
           ? (_loadingProfile
                 ? const Center(child: CircularProgressIndicator())

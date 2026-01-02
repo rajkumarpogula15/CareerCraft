@@ -5,40 +5,29 @@
 Thumbs.db
 
 # =========================
-# Logs
+# Logs / Temp
 # =========================
 *.log
-
-# =========================
-# Environment Files (IMPORTANT)
-# =========================
-.env
-.env.*
-*.env
-
-# =========================
-# Node / Frontend
-# =========================
-node_modules/
-dist/
-build/
-.next/
-
-# =========================
-# Python / Backend
-# =========================
-__pycache__/
-*.pyc
-venv/
+*.tmp
 
 # =========================
 # Flutter / Dart
 # =========================
 .dart_tool/
 .packages
-.pub-cache/
 .pub/
+.pub-cache/
 build/
+flutter_*.png
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# =========================
+# IDEs
+# =========================
+.idea/
+.vscode/
+*.iml
 
 # =========================
 # Android
@@ -46,8 +35,12 @@ build/
 android/.gradle/
 android/local.properties
 android/key.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
 android/app/*.keystore
 android/app/google-services.json
+android/build/
 
 # =========================
 # iOS
@@ -58,7 +51,31 @@ ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec
 ios/Flutter/Generated.xcconfig
 ios/Flutter/ephemeral/
+ios/Runner.xcworkspace/
 ios/Runner/GeneratedPluginRegistrant.*
+
+# =========================
+# macOS
+# =========================
+macos/Flutter/
+macos/Pods/
+macos/Runner.xcworkspace/
+macos/Flutter/ephemeral/
+
+# =========================
+# Windows
+# =========================
+windows/flutter/
+windows/x64/
+windows/build/
+windows/flutter/ephemeral/
+
+# =========================
+# Linux
+# =========================
+linux/flutter/
+linux/build/
+linux/flutter/ephemeral/
 
 # =========================
 # Web
@@ -66,15 +83,22 @@ ios/Runner/GeneratedPluginRegistrant.*
 web/.last_build_id
 
 # =========================
-# Desktop (Flutter)
+# Environment Files
 # =========================
-macos/Flutter/ephemeral/
-windows/flutter/ephemeral/
-linux/flutter/ephemeral/
+.env
+.env.*
+*.env
 
 # =========================
-# IDEs
+# Node / Frontend
 # =========================
-.vscode/
-.idea/
-*.iml
+node_modules/
+dist/
+.next/
+
+# =========================
+# Python / Backend
+# =========================
+__pycache__/
+*.pyc
+venv/

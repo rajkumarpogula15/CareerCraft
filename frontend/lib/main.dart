@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:app_links/app_links.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/home_screen.dart';
 import 'screens/repos_screen.dart';
@@ -11,7 +12,9 @@ import 'services/auth_service.dart';
 import 'widgets/top_bar.dart';
 import 'widgets/bottom_bar.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   runApp(const CareerCraftApp());
 }
 

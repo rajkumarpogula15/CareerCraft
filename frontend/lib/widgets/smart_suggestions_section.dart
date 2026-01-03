@@ -66,9 +66,9 @@ class SmartSuggestionsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final allSuggestions = [..._predefinedSuggestions, ...suggestions];
 
-    debugPrint(
-      '[SmartSuggestionsSection] build | owner=$owner | count=${allSuggestions.length}',
-    );
+    // debugPrint(
+    //   '[SmartSuggestionsSection] build | owner=$owner | count=${allSuggestions.length}',
+    // );
 
     if (allSuggestions.isEmpty) {
       return const SizedBox.shrink();
@@ -108,7 +108,7 @@ class SmartSuggestionsSection extends StatelessWidget {
   /// Handle suggestion tap
   /// --------------------------------------------------------------
   void _handleSuggestionTap(BuildContext context, SmartSuggestion suggestion) {
-    debugPrint('[SmartSuggestionsSection] Tap → ${suggestion.label}');
+    // debugPrint('[SmartSuggestionsSection] Tap → ${suggestion.label}');
 
     switch (suggestion.action) {
       case SuggestionAction.readmeGeneration:

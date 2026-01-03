@@ -14,15 +14,12 @@ class RepositoryService {
     final token = AppState.jwt;
 
     if (token == null) {
-      debugPrint('❌ No JWT token found');
       throw Exception('User not authenticated');
     }
 
-    final repoId = repo['id'];
-    final url = '${AppConfig.backendBaseUrl}/repositories/$repoId/favourite';
-
-    debugPrint('🌐 POST $url');
-    debugPrint('📦 Payload: ${jsonEncode(repo)}');
+    final int repoId = repo['id'];
+    final String url =
+        '${AppConfig.backendBaseUrl}/repositories/$repoId/favourite';
 
     final response = await http.post(
       Uri.parse(url),
@@ -33,14 +30,9 @@ class RepositoryService {
       body: jsonEncode(repo),
     );
 
-    debugPrint('🌐 Status Code: ${response.statusCode}');
-    debugPrint('🌐 Response Body: ${response.body}');
-
     if (response.statusCode != 200) {
       throw Exception('Failed to add favourite');
     }
-
-    debugPrint('✅ Added to favourites');
   }
 
   /* =========================
@@ -50,27 +42,20 @@ class RepositoryService {
     final token = AppState.jwt;
 
     if (token == null) {
-      debugPrint('❌ No JWT token found');
       throw Exception('User not authenticated');
     }
 
-    final url = '${AppConfig.backendBaseUrl}/repositories/$repoId/favourite';
-
-    debugPrint('🌐 DELETE $url');
+    final String url =
+        '${AppConfig.backendBaseUrl}/repositories/$repoId/favourite';
 
     final response = await http.delete(
       Uri.parse(url),
       headers: {'Authorization': 'Bearer $token'},
     );
 
-    debugPrint('🌐 Status Code: ${response.statusCode}');
-    debugPrint('🌐 Response Body: ${response.body}');
-
     if (response.statusCode != 200) {
       throw Exception('Failed to remove favourite');
     }
-
-    debugPrint('✅ Removed from favourites');
   }
 
   /* =========================
@@ -80,21 +65,15 @@ class RepositoryService {
     final token = AppState.jwt;
 
     if (token == null) {
-      debugPrint('❌ No JWT token found');
       throw Exception('User not authenticated');
     }
 
-    final url = '${AppConfig.backendBaseUrl}/repositories/favourites';
-
-    debugPrint('🌐 GET $url');
+    final String url = '${AppConfig.backendBaseUrl}/repositories/favourites';
 
     final response = await http.get(
       Uri.parse(url),
       headers: {'Authorization': 'Bearer $token'},
     );
-
-    debugPrint('🌐 Status Code: ${response.statusCode}');
-    debugPrint('🌐 Response Body: ${response.body}');
 
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch favourites');
@@ -102,12 +81,8 @@ class RepositoryService {
 
     final List<dynamic> data = jsonDecode(response.body);
 
-    final favourites = data
-        .map((json) => FavouriteRepo.fromJson(json))
+    return data
+        .map<FavouriteRepo>((json) => FavouriteRepo.fromJson(json))
         .toList();
-
-    debugPrint('✅ Fetched ${favourites.length} favourite repositories');
-
-    return favourites;
   }
 }

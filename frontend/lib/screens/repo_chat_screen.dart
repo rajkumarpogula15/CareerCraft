@@ -62,7 +62,7 @@ class _RepoChatScreenState extends State<RepoChatScreen> {
 
       await _loadHistory();
     } catch (e) {
-      debugPrint('Init chat error: $e');
+      debugPrint('🚨🚨🚨🚨🚨🚨Init chat error: $e');
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -130,7 +130,7 @@ class _RepoChatScreenState extends State<RepoChatScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Send message error: $e');
+      debugPrint('🚨🚨🚨🚨🚨🚨 Send message failed! Error: $e');
       if (mounted) setState(() => sending = false);
     }
 

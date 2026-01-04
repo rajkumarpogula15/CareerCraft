@@ -2,10 +2,42 @@ import 'package:flutter/material.dart';
 
 import '../state/app_state.dart';
 import '../widgets/logoutView.dart';
+import '../services/interview_api.dart';
 import 'interview_setup_screen.dart';
+import 'interview_review_screen.dart';
 
-class MockInterviewScreen extends StatelessWidget {
+class MockInterviewScreen extends StatefulWidget {
   const MockInterviewScreen({super.key});
+
+  @override
+  State<MockInterviewScreen> createState() => _MockInterviewScreenState();
+}
+
+class _MockInterviewScreenState extends State<MockInterviewScreen> {
+  bool _loading = true;
+  String? _error;
+  List<dynamic> _interviews = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInterviewHistory();
+  }
+
+  Future<void> _loadInterviewHistory() async {
+    try {
+      final interviews = await InterviewApi.getInterviewHistory();
+      setState(() {
+        _interviews = interviews;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load interview history';
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,11 +58,13 @@ class MockInterviewScreen extends StatelessWidget {
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             const Text(
               'Practice real interview questions based on your GitHub projects.',
             ),
             const SizedBox(height: 24),
+
+            /// ▶️ Start New Interview
             Card(
               elevation: 2,
               child: ListTile(
@@ -47,9 +81,73 @@ class MockInterviewScreen extends StatelessWidget {
                 },
               ),
             ),
+
+            const SizedBox(height: 32),
+
+            /// 🕘 History Section
+            Text(
+              'Previous Interviews',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+
+            Expanded(child: _buildHistory()),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildHistory() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(child: Text(_error!));
+    }
+
+    if (_interviews.isEmpty) {
+      return const Center(
+        child: Text(
+          'No interviews yet.\nStart your first mock interview!',
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: _interviews.length,
+      itemBuilder: (context, index) {
+        final interview = _interviews[index];
+        final score = interview['finalResult']?['overallScore'];
+
+        return Card(
+          elevation: 1,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            leading: const Icon(Icons.history),
+            title: Text(
+              'Difficulty: ${interview['difficulty'].toString().toUpperCase()}',
+            ),
+            subtitle: Text(
+              score != null ? 'Final Score: $score' : 'Completed interview',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      InterviewReviewScreen(sessionId: interview['_id']),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

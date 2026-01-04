@@ -33,10 +33,6 @@ class InterviewApi {
 
     final decoded = jsonDecode(res.body);
 
-    if (decoded is! Map<String, dynamic>) {
-      throw Exception('Invalid JSON response: ${res.body}');
-    }
-
     final sessionId = decoded['sessionId'];
 
     if (sessionId is! String || sessionId.isEmpty) {
@@ -120,5 +116,55 @@ class InterviewApi {
     }
 
     return result;
+  }
+
+  // ==================================================
+  // 🕘 INTERVIEW HISTORY (NEW)
+  // ==================================================
+  static Future<List<dynamic>> getInterviewHistory() async {
+    final url = Uri.parse('$baseUrl/history');
+
+    final res = await http.get(url, headers: _headers());
+
+    if (res.statusCode != 200) {
+      throw Exception(
+        'getInterviewHistory failed (${res.statusCode}): ${res.body}',
+      );
+    }
+
+    final decoded = jsonDecode(res.body);
+
+    final interviews = decoded['interviews'];
+
+    if (interviews is! List) {
+      throw Exception('Invalid interview history response: $decoded');
+    }
+
+    return interviews;
+  }
+
+  // ==================================================
+  // 📄 INTERVIEW REVIEW (NEW)
+  // ==================================================
+  static Future<Map<String, dynamic>> getInterviewById(String sessionId) async {
+    final url = Uri.parse('$baseUrl/$sessionId');
+
+    final res = await http.get(url, headers: _headers());
+
+    if (res.statusCode != 200) {
+      throw Exception(
+        'getInterviewById failed (${res.statusCode}): ${res.body}',
+      );
+    }
+
+    final decoded = jsonDecode(res.body);
+
+    final interview = decoded['interview'];
+
+    if (interview is! Map<String, dynamic>) {
+      throw Exception('Invalid interview response: $decoded');
+    }
+
+    return interview;
   }
 }

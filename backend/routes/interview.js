@@ -320,4 +320,34 @@ router.post('/:sessionId/final-analysis', requireAuth, async (req, res) => {
   }
 });
 
+/* ───────────────────────────────────────────── */
+/* GET /interviews/history  (NEW)                */
+/* ───────────────────────────────────────────── */
+router.get('/history', requireAuth, async (req, res) => {
+  const interviews = await InterviewSession.find({
+    userId: req.user.userId,
+    status: 'completed',
+  })
+    .select('difficulty completedAt finalResult repos')
+    .sort({ completedAt: -1 });
+
+  res.json({ success: true, interviews });
+});
+
+/* ───────────────────────────────────────────── */
+/* GET /interviews/:sessionId  (NEW)             */
+/* ───────────────────────────────────────────── */
+router.get('/:sessionId', requireAuth, async (req, res) => {
+  const session = await InterviewSession.findOne({
+    _id: req.params.sessionId,
+    userId: req.user.userId,
+  });
+
+  if (!session) {
+    return res.status(404).json({ error: 'Interview not found' });
+  }
+
+  res.json({ success: true, interview: session });
+});
+
 module.exports = router;

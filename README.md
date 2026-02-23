@@ -1,100 +1,136 @@
-```markdown
 # CareerCraft
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Language](https://img.shields.io/badge/Language-Dart-blue.svg)]()
-[![Status](https://img.shields.io/badge/Status-In%20Development-orange.svg)]()
+CareerCraft is a full-stack project with a **Flutter frontend** and a **Node.js/Express backend** for GitHub-powered career tooling (README generation, repo chat, interview practice, resume support, and activity tracking).
 
-## 🌟 Overview
+## Tech Stack
 
-**CareerCraft** is a comprehensive, full-stack application designed to empower individuals in navigating their career paths. This project leverages a modern architecture, utilizing **Dart** for both the backend services and the mobile/web frontend.
+- **Frontend:** Flutter (Dart)
+- **Backend:** Node.js, Express, MongoDB (Mongoose)
+- **AI/GitHub Integrations:** Gemini API, GitHub REST API
 
-This repository serves as the central hub for the **Major Project** undertaken by [rajkumarpogula15](https://github.com/rajkumarpogula15).
+## Project Structure
 
-## 🏗️ Architecture & Technology Stack
-
-CareerCraft is structured into distinct components to ensure scalability, maintainability, and clear separation of concerns.
-
-| Component | Technology | Description |
-| :--- | :--- | :--- |
-| **Frontend** | Dart (Flutter) | Cross-platform user interface for job seekers and career advisors. |
-| **Backend** | Dart (e.g., Shelf/Aqueduct/Serverpod - *Specific framework to be determined/documented*) | Core business logic, API provision, and data handling. |
-| **Database** | (To be specified in backend documentation) | Data persistence layer. |
-
-## 📂 Repository Structure
-
-The repository is organized clearly to separate client and server components:
-
-```
+```text
 CareerCraft/
-├── 📄 .gitignore         # Specifies files to ignore during Git operations.
-├── 📄 README.md          # This file.
-├── 📁 backend/           # Contains all server-side logic, APIs, and infrastructure code.
-└── 📁 frontend/          # Contains the Dart/Flutter application source code.
+├── backend/
+│   ├── app.js
+│   ├── server.js
+│   ├── config/
+│   ├── controllers/     # Request/response handling
+│   ├── middleware/      # Auth middleware
+│   ├── models/          # Mongoose schemas
+│   ├── repositories/    # DB access abstraction
+│   ├── routes/          # API route declarations
+│   ├── services/        # Business logic + integrations
+│   └── utils/           # Shared helper utilities
+├── frontend/
+│   ├── lib/
+│   └── ...
+└── README.md
 ```
 
-## 🚀 Getting Started
+## Backend Architecture (Layered / MVC-inspired)
 
-### Prerequisites
+The backend now follows clean separation of concerns:
 
-Before you begin, ensure you have the following installed:
+1. **Routes**
+   - Define URL paths and middleware.
+   - Delegate execution to controllers only.
 
-1.  **Dart SDK:** (Version X.Y.Z or newer)
-2.  **Flutter SDK:** (If the frontend is Flutter-based)
-3.  **Git**
+2. **Controllers**
+   - Parse request inputs.
+   - Return HTTP responses/status codes.
+   - Call service methods.
 
-### Installation
+3. **Services**
+   - Own business rules and orchestration.
+   - Integrate external systems (GitHub, Gemini).
+   - Stay independent from Express internals.
 
-1.  **Clone the repository:**
+4. **Repositories**
+   - Isolate all Mongoose queries.
+   - Keep persistence logic out of services/controllers.
 
-    ```bash
-    git clone https://github.com/rajkumarpogula15/CareerCraft.git
-    cd CareerCraft
-    ```
+5. **Models**
+   - Mongoose schemas and domain entities.
 
-2.  **Set up Backend (API Server):**
+## Backend Setup
 
-    Navigate to the backend directory and install dependencies:
+1. Install dependencies:
 
-    ```bash
-    cd backend
-    # dart pub get  # Or 'flutter pub get' if using Flutter for the backend
-    # Further setup instructions (e.g., database connection strings) will be located in backend/README.md
-    ```
-
-3.  **Set up Frontend (Client Application):**
-
-    Navigate to the frontend directory and prepare the application:
-
-    ```bash
-    cd ../frontend
-    flutter pub get # or dart pub get if pure Dart CLI app
-    # Specific configuration for API endpoints may be required here.
-    ```
-
-### Running the Application
-
-Detailed instructions on running the server and client independently will be provided in their respective subdirectories.
-
-## 🤝 Contributing
-
-We welcome contributions! As this is a major project, contributions are highly valuable for testing, design refinement, and feature expansion.
-
-Please read our [CONTRIBUTING.md](CONTRIBUTING.md) (to be created) for guidelines on submitting pull requests, reporting issues, and setting up your development environment.
-
-### Code of Conduct
-
-This project adheres to the Contributor Covenant Code of Conduct. By participating, you are expected to uphold these standards. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) (to be created) for details.
-
-## 📄 License
-
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for more details.
-
-## 📞 Contact
-
-The primary maintainer for this project is:
-
-**Rajkumar Pogula** - [@rajkumarpogula15](https://github.com/rajkumarpogula15) (GitHub)
-
-Project Link: [https://github.com/rajkumarpogula15/CareerCraft](https://github.com/rajkumarpogula15/CareerCraft)
+```bash
+cd backend
+npm install
 ```
+
+2. Create `.env` file in `backend/` with:
+
+```env
+PORT=5000
+MONGO_URI=<your_mongodb_connection>
+JWT_SECRET=<your_jwt_secret>
+GITHUB_CLIENT_ID=<your_github_oauth_client_id>
+GITHUB_CLIENT_SECRET=<your_github_oauth_client_secret>
+GEMINI_API_KEY=<your_gemini_api_key>
+GEMINI_MODEL=<gemini_model_name>
+```
+
+3. Start backend:
+
+```bash
+npm run dev
+```
+
+## Frontend Setup
+
+```bash
+cd frontend
+flutter pub get
+flutter run
+```
+
+## API Modules
+
+- `/auth/github` - OAuth login, profile, repository listing
+- `/ai/readme` - README/social post/resume points generation
+- `/chat` - repository chat sessions and history
+- `/repositories` - favourites management
+- `/activity` - recent activity logging
+- `/interviews` - repo summaries and mock interview flow
+- `/resume` - resume draft management
+
+## Improvements Applied
+
+- Reorganized backend into **controller/service/repository/model** layers.
+- Reduced route files to thin routers with clean imports.
+- Moved business logic and persistence logic out of route handlers.
+- Created `app.js` for Express app wiring and simplified `server.js` bootstrap.
+- Fixed maintainability issues in AI route logic by centralizing logic in service classes.
+
+## Suggested Next Improvements
+
+1. Add **automated tests**:
+   - Unit tests for services.
+   - Integration tests for routes using supertest.
+
+2. Add **request validation**:
+   - Use Joi/Zod for robust DTO validation.
+
+3. Add **centralized error middleware**:
+   - Standardized API error format.
+
+4. Add **logging/observability**:
+   - Structured logging (pino/winston), request correlation IDs.
+
+5. Add **rate limiting/caching**:
+   - Protect Gemini/GitHub endpoints and reduce duplicate external calls.
+
+6. Add **OpenAPI/Swagger docs**:
+   - Better API discoverability and frontend-backend contracts.
+
+7. Improve **security hardening**:
+   - Helmet, stricter CORS policy, token rotation strategy.
+
+---
+
+If needed, I can also provide a second pass that introduces DTOs, validation middleware, and full test coverage while preserving current API contracts.

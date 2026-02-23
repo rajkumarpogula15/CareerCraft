@@ -6,6 +6,8 @@ import '../services/repository_service.dart';
 import '../models/favourite_repo.dart';
 import '../widgets/repo_card.dart';
 
+import '../widgets/loading/section_skeleton.dart';
+
 class WorkspaceSection extends StatefulWidget {
   const WorkspaceSection({Key? key}) : super(key: key);
 
@@ -14,16 +16,35 @@ class WorkspaceSection extends StatefulWidget {
 }
 
 class _WorkspaceSectionState extends State<WorkspaceSection> {
+  /// 🔧 Set to false after testing
+  static const bool _debugDelay = true;
+
   late Future<List<RecentActivity>> _activities;
   late Future<List<FavouriteRepo>> _favouriteRepos;
 
-  bool _showAllFavourites = false; // 👈 toggle state
+  bool _showAllFavourites = false;
 
   @override
   void initState() {
     super.initState();
-    _activities = ActivityService.fetchRecent();
-    _favouriteRepos = RepositoryService.fetchFavourites();
+
+    _activities = _loadActivities();
+    _favouriteRepos = _loadFavourites();
+  }
+
+  /// ---------------- Forced 2s Delay Wrapper ----------------
+  Future<List<RecentActivity>> _loadActivities() async {
+    if (_debugDelay) {
+      await Future.delayed(const Duration(seconds: 2));
+    }
+    return ActivityService.fetchRecent();
+  }
+
+  Future<List<FavouriteRepo>> _loadFavourites() async {
+    if (_debugDelay) {
+      await Future.delayed(const Duration(seconds: 2));
+    }
+    return RepositoryService.fetchFavourites();
   }
 
   @override
@@ -41,10 +62,7 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
           future: _favouriteRepos,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Text(
-                'Loading favourite repositories...',
-                style: TextStyle(color: Color(0xFF64748B)),
-              );
+              return const SectionSkeleton(count: 3);
             }
 
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -61,7 +79,6 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
 
             return Column(
               children: [
-                // ⭐ Favourite Repo Cards
                 ...visibleRepos.map((repo) {
                   return RepoCard(
                     repoId: repo.repoId,
@@ -74,7 +91,6 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
                   );
                 }),
 
-                // 👇 See all / Show less
                 if (repos.length > 3)
                   Align(
                     alignment: Alignment.centerLeft,
@@ -107,10 +123,7 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
           future: _activities,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Text(
-                'Loading recent activity...',
-                style: TextStyle(color: Color(0xFF64748B)),
-              );
+              return const SectionSkeleton(count: 2);
             }
 
             if (!snapshot.hasData || snapshot.data!.isEmpty) {

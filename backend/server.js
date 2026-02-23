@@ -37,8 +37,13 @@ app.get('/', (req, res) => {
   res.json({ message: 'CareerCraft backend running' });
 });
 
-// Start server
+// ================================
+// ✅ START SERVER (PUBLIC ACCESS)
+// ================================
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT} (Public Access Enabled)`);
+  console.log(`🌐 Local:   http://localhost:${PORT}`);
+  console.log(`📱 Mobile:  http://192.168.1.4:${PORT}`);
 });

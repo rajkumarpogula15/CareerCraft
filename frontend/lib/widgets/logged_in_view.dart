@@ -13,8 +13,11 @@ import '../utils/iterable_ext.dart';
 import '../config/app_config.dart';
 import '../widgets/readme_preview_sheet.dart';
 
+import '../widgets/loading/repo_skeleton.dart';
+import '../widgets/loading/section_skeleton.dart';
+
 /// ---------------------------------------------------------------------------
-/// Repo model (REAL backend-driven)
+/// Repo model
 /// ---------------------------------------------------------------------------
 class Repo {
   final int id;
@@ -43,11 +46,12 @@ class Repo {
 }
 
 /// ---------------------------------------------------------------------------
-/// Repo service (REAL backend call)
+/// Repo service
 /// ---------------------------------------------------------------------------
 class RepoService {
   static Future<List<Repo>> fetchUserRepos() async {
     final token = AppState.jwt;
+
     if (token == null) throw Exception('JWT missing');
 
     final res = await http.get(
@@ -63,6 +67,7 @@ class RepoService {
     }
 
     final List data = jsonDecode(res.body);
+
     return data.map((e) => Repo.fromJson(e)).toList();
   }
 }
@@ -106,40 +111,81 @@ class LoggedInView extends StatefulWidget {
   State<LoggedInView> createState() => _LoggedInViewState();
 }
 
-class _LoggedInViewState extends State<LoggedInView> {
+class _LoggedInViewState extends State<LoggedInView>
+    with SingleTickerProviderStateMixin {
+  /// 🔧 TEST MODE: Change to false in production
+  static const bool _debugDelay = true;
+
   List<RecentActivity> _activities = [];
   List<String> _rawSmartSuggestions = [];
 
   bool _loadingActivities = true;
   bool _loadingSuggestions = true;
 
-  /// 🔑 keeps track of which repo needs README generation
   String? _pendingReadmeRepo;
+
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeIn,
+    );
+
     _loadActivities();
     _loadSmartSuggestions();
   }
 
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  /// ---------------- Load Activities ----------------
   Future<void> _loadActivities() async {
     try {
+      // 🔴 Artificial delay for testing
+      if (_debugDelay) {
+        await Future.delayed(const Duration(seconds: 3));
+      }
+
       final data = await ActivityService.fetchRecent();
+
       if (!mounted) return;
 
       setState(() {
         _activities = data;
         _loadingActivities = false;
       });
+
+      _fadeController.forward();
     } catch (_) {
-      if (mounted) setState(() => _loadingActivities = false);
+      if (mounted) {
+        setState(() => _loadingActivities = false);
+      }
     }
   }
 
+  /// ---------------- Load Suggestions ----------------
   Future<void> _loadSmartSuggestions() async {
     try {
+      // 🔴 Artificial delay for testing
+      if (_debugDelay) {
+        await Future.delayed(const Duration(seconds: 3));
+      }
+
       final repos = await RepoService.fetchUserRepos();
+
       final suggestions = SmartSuggestionService.generate(repos);
 
       if (!mounted) return;
@@ -149,13 +195,13 @@ class _LoggedInViewState extends State<LoggedInView> {
         _loadingSuggestions = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loadingSuggestions = false);
+      if (mounted) {
+        setState(() => _loadingSuggestions = false);
+      }
     }
   }
 
-  /// -------------------------------------------------------------------------
   /// Convert backend text → UI model
-  /// -------------------------------------------------------------------------
   List<SmartSuggestion> get _smartSuggestionsUI {
     return _rawSmartSuggestions.map((text) {
       final match = RegExp(r'"([^"]+)"').firstMatch(text);
@@ -177,9 +223,7 @@ class _LoggedInViewState extends State<LoggedInView> {
     }).toList();
   }
 
-  /// -------------------------------------------------------------------------
-  /// README generator launcher
-  /// -------------------------------------------------------------------------
+  /// README launcher
   void _showReadmeGenerator(String repoName, String owner) {
     showModalBottomSheet(
       context: context,
@@ -199,6 +243,7 @@ class _LoggedInViewState extends State<LoggedInView> {
   @override
   Widget build(BuildContext context) {
     final user = AppState.user;
+
     if (user == null) {
       return const Center(child: Text("Failed to load profile"));
     }
@@ -217,33 +262,39 @@ class _LoggedInViewState extends State<LoggedInView> {
           const HomeHeader(),
           const WorkspaceSection(),
 
+          /// ---------------- Activities ----------------
           if (_loadingActivities)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(),
-            )
-          else if (repoChat != null)
-            ContinueSessionCard(
-              repoName: repoChat.repoName,
-              owner: owner,
-              lastQuestion: 'Continue from where we paused',
-              type: 'RepoBot',
+            const SectionSkeleton(count: 2)
+          else
+            FadeTransition(
+              opacity: _fadeAnimation,
+              child: repoChat != null
+                  ? ContinueSessionCard(
+                      repoName: repoChat.repoName,
+                      owner: owner,
+                      lastQuestion: 'Continue from where we paused',
+                      type: 'RepoBot',
+                    )
+                  : const SizedBox(),
             ),
 
+          /// ---------------- Suggestions ----------------
           if (_loadingSuggestions)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(),
-            )
-          else if (_smartSuggestionsUI.isNotEmpty)
-            SmartSuggestionsSection(
-              owner: owner,
-              suggestions: _smartSuggestionsUI,
-              onGenerateReadme: () {
-                if (_pendingReadmeRepo == null) return;
+            const SectionSkeleton(count: 3)
+          else
+            FadeTransition(
+              opacity: _fadeAnimation,
+              child: _smartSuggestionsUI.isNotEmpty
+                  ? SmartSuggestionsSection(
+                      owner: owner,
+                      suggestions: _smartSuggestionsUI,
+                      onGenerateReadme: () {
+                        if (_pendingReadmeRepo == null) return;
 
-                _showReadmeGenerator(_pendingReadmeRepo!, owner);
-              },
+                        _showReadmeGenerator(_pendingReadmeRepo!, owner);
+                      },
+                    )
+                  : const SizedBox(),
             ),
 
           const HomeFooter(),

@@ -1,20 +1,23 @@
-import 'dart:async';
-import 'package:flutter/material.dart';
+﻿import 'dart:async';
+
 import 'package:app_links/app_links.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'core/theme/app_theme.dart';
 import 'screens/home_screen.dart';
-import 'screens/repos_screen.dart';
-import 'screens/profile_screen.dart';
 import 'screens/mock_interview_screen.dart';
-import 'state/app_state.dart';
+import 'screens/profile_screen.dart';
+import 'screens/repos_screen.dart';
 import 'services/auth_service.dart';
-import 'widgets/top_bar.dart';
+import 'state/app_state.dart';
+import 'state/theme_controller.dart';
 import 'widgets/bottom_bar.dart';
+import 'widgets/top_bar.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: '.env');
   runApp(const CareerCraftApp());
 }
 
@@ -27,6 +30,7 @@ class CareerCraftApp extends StatefulWidget {
 
 class _CareerCraftAppState extends State<CareerCraftApp> {
   final AppLinks _appLinks = AppLinks();
+  final ThemeController _themeController = ThemeController();
   StreamSubscription<Uri>? _linkSub;
 
   int index = 0;
@@ -41,6 +45,7 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
   @override
   void initState() {
     super.initState();
+    _themeController.load();
     _restoreSession();
     _initDeepLinks();
   }
@@ -87,26 +92,30 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
   @override
   void dispose() {
     _linkSub?.cancel();
+    _themeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-        primaryColor: const Color(0xFF4F46E5),
-        useMaterial3: true,
-      ),
-      home: Scaffold(
-        appBar: const TopBar(),
-        body: screens[index],
-        bottomNavigationBar: BottomBar(
-          currentIndex: index,
-          onTap: (value) => setState(() => index = value),
-        ),
-      ),
+    return AnimatedBuilder(
+      animation: _themeController,
+      builder: (context, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: _themeController.themeMode,
+          home: Scaffold(
+            appBar: TopBar(themeController: _themeController),
+            body: screens[index],
+            bottomNavigationBar: BottomBar(
+              currentIndex: index,
+              onTap: (value) => setState(() => index = value),
+            ),
+          ),
+        );
+      },
     );
   }
 }

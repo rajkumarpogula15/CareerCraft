@@ -33,6 +33,7 @@ class RepoCard extends StatefulWidget {
 
 class _RepoCardState extends State<RepoCard> {
   bool _expanded = false;
+  bool _pressed = false;
   late bool _isFavourite;
 
   @override
@@ -45,44 +46,53 @@ class _RepoCardState extends State<RepoCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _expanded
-              ? theme.colorScheme.primary
-              : theme.dividerColor.withOpacity(0.4),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+    return AnimatedScale(
+      scale: _pressed ? 0.97 : 1,
+      duration: const Duration(milliseconds: 120),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _expanded
+                ? theme.colorScheme.primary
+                : theme.dividerColor.withValues(alpha: 0.4),
           ),
-        ],
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => setState(() => _expanded = !_expanded),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _mainRow(theme),
-              AnimatedCrossFade(
-                duration: const Duration(milliseconds: 200),
-                crossFadeState: _expanded
-                    ? CrossFadeState.showSecond
-                    : CrossFadeState.showFirst,
-                firstChild: const SizedBox(),
-                secondChild: _actions(context),
-              ),
-            ],
+          boxShadow: [
+            BoxShadow(
+              color: theme.colorScheme.shadow.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapCancel: () => setState(() => _pressed = false),
+          onTap: () => setState(() {
+            _pressed = false;
+            _expanded = !_expanded;
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _mainRow(theme),
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 200),
+                  crossFadeState: _expanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  firstChild: const SizedBox(),
+                  secondChild: _actions(context),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -125,7 +135,7 @@ class _RepoCardState extends State<RepoCard> {
         Icon(
           widget.isPrivate ? Icons.lock_outline_rounded : Icons.public_rounded,
           size: 18,
-          color: Colors.black,
+          color: theme.colorScheme.onSurfaceVariant,
         ),
 
         const SizedBox(width: 4),
@@ -133,10 +143,10 @@ class _RepoCardState extends State<RepoCard> {
         AnimatedRotation(
           turns: _expanded ? 0.5 : 0,
           duration: const Duration(milliseconds: 200),
-          child: const Icon(
+          child: Icon(
             Icons.expand_more_rounded,
             size: 22,
-            color: Colors.black,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],

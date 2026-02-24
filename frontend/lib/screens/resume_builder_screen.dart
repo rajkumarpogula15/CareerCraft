@@ -1,10 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/resume_draft.dart';
 import '../services/resume_api.dart';
 import '../services/resume/github_api.dart';
 import '../services/resume/profile_api.dart';
+import '../widgets/loading/app_skeleton.dart';
 import '../widgets/resume/repo_card.dart';
 import 'resume_preview_screen.dart';
 
@@ -90,8 +90,14 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
   }
 
   Future<void> _loadRepos() async {
-    repos = await GithubApi.fetchRepos();
-    if (mounted) setState(() => reposLoading = false);
+    try {
+      repos = await GithubApi.fetchRepos();
+    } catch (_) {
+      repos = [];
+    }
+    if (mounted) {
+      setState(() => reposLoading = false);
+    }
   }
 
   Future<void> _loadSavedResume() async {
@@ -102,7 +108,9 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
     _expCtrls.clear();
 
     final profile = Map<String, dynamic>.from(data['profile'] ?? {});
+    _nameCtrl.text = profile['name'] ?? _nameCtrl.text;
     _titleCtrl.text = profile['title'] ?? '';
+    _emailCtrl.text = profile['email'] ?? _emailCtrl.text;
     _phoneCtrl.text = profile['phone'] ?? '';
     _locationCtrl.text = profile['location'] ?? '';
     _linkedinCtrl.text = profile['linkedin'] ?? '';
@@ -138,7 +146,7 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
 
   // ================= SAVE =================
 
-  Future<void> _saveResume() async {
+  void _syncDraftFromControllers() {
     draft.summary = _summaryCtrl.text.trim();
 
     draft.profile
@@ -149,6 +157,10 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
       ..['location'] = _locationCtrl.text.trim()
       ..['linkedin'] = _linkedinCtrl.text.trim()
       ..['portfolio'] = _portfolioCtrl.text.trim();
+  }
+
+  Future<void> _saveResume() async {
+    _syncDraftFromControllers();
 
     await ResumeApi.saveResume({
       'profile': draft.profile,
@@ -203,7 +215,7 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: FormSectionSkeleton());
     }
 
     return Scaffold(
@@ -213,12 +225,15 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
           IconButton(icon: const Icon(Icons.save), onPressed: _saveResume),
           IconButton(
             icon: const Icon(Icons.visibility),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ResumePreviewScreen(draft: draft),
-              ),
-            ),
+            onPressed: () {
+              _syncDraftFromControllers();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ResumePreviewScreen(draft: draft),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -438,7 +453,9 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
   );
 
   Widget _reposSection() {
-    if (reposLoading) return const CircularProgressIndicator();
+    if (reposLoading) {
+      return const CardListSkeleton(itemCount: 3, itemHeight: 120);
+    }
 
     return Column(
       children: repos.map((repo) {
@@ -469,7 +486,9 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
     padding: const EdgeInsets.symmetric(vertical: 12),
     child: Text(
       t,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
     ),
   );
 

@@ -39,6 +39,24 @@ const UserSchema = new mongoose.Schema(
       enum: ['user', 'admin'],
       default: 'user',
     },
+
+    lastLoginAt: Date,
+    loginStreak: {
+      type: Number,
+      default: 0,
+    },
+    maxLoginStreak: {
+      type: Number,
+      default: 0,
+    },
+    loginDates: {
+      type: [Date],
+      default: [],
+    },
+    notificationEnabled: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );

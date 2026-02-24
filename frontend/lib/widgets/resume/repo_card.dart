@@ -23,6 +23,8 @@ class RepoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -43,10 +45,13 @@ class RepoCard extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: generating ? null : onGenerate,
                   child: generating
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.colorScheme.onPrimary,
+                          ),
                         )
                       : const Text('Generate Resume Points'),
                 ),

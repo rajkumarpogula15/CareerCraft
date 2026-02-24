@@ -21,13 +21,6 @@ class PdfService {
             _sectionDivider(),
           ],
 
-          // ================= EDUCATION =================
-          if (draft.education.isNotEmpty) ...[
-            _sectionTitle('EDUCATION'),
-            ...draft.education.map(_educationItem),
-            _sectionDivider(),
-          ],
-
           // ================= SKILLS =================
           if (draft.skills.isNotEmpty) ...[
             _sectionTitle('SKILLS'),
@@ -44,6 +37,13 @@ class PdfService {
 
           // ================= PROJECTS =================
           _projectsSection(draft),
+
+          // ================= EDUCATION =================
+          if (draft.education.isNotEmpty) ...[
+            _sectionTitle('EDUCATION'),
+            ...draft.education.map(_educationItem),
+            _sectionDivider(),
+          ],
 
           // ================= ACHIEVEMENTS =================
           if (draft.achievements.isNotEmpty) ...[

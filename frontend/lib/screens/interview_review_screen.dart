@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../services/interview_api.dart';
+import '../widgets/common/state_views.dart';
+import '../widgets/loading/app_skeleton.dart';
 
 class InterviewReviewScreen extends StatefulWidget {
   final String sessionId;
@@ -21,15 +24,40 @@ class _InterviewReviewScreenState extends State<InterviewReviewScreen> {
     _loadInterview();
   }
 
+  String _feedbackText(Map<String, dynamic> evaluation) {
+    final direct = (evaluation['feedback'] ?? '').toString().trim();
+    if (direct.isNotEmpty) return direct;
+
+    final parts = <String>[];
+    final correctness = (evaluation['correctness'] ?? '').toString().trim();
+    final clarity = (evaluation['clarity'] ?? '').toString().trim();
+    final notes = (evaluation['notes'] ?? '').toString().trim();
+
+    if (correctness.isNotEmpty) parts.add('Correctness: $correctness');
+    if (clarity.isNotEmpty) parts.add('Clarity: $clarity');
+    if (notes.isNotEmpty) parts.add(notes);
+
+    return parts.isEmpty ? 'No feedback available' : parts.join('\n');
+  }
+
   Future<void> _loadInterview() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
     try {
       final interview = await InterviewApi.getInterviewById(widget.sessionId);
+
+      if (!mounted) return;
 
       setState(() {
         _interview = interview;
         _loading = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
+
       setState(() {
         _error = 'Failed to load interview';
         _loading = false;
@@ -47,24 +75,27 @@ class _InterviewReviewScreenState extends State<InterviewReviewScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const CardListSkeleton(itemCount: 5, itemHeight: 130);
     }
 
     if (_error != null) {
-      return Center(child: Text(_error!));
+      return AppErrorState(message: _error!, onRetry: _loadInterview);
     }
 
-    final questions = _interview!['questions'] as List<dynamic>;
-    final answers = _interview!['answers'] as List<dynamic>;
-    final evaluations = _interview!['evaluations'] as List<dynamic>;
+    if (_interview == null) {
+      return const AppEmptyState(title: 'Interview data unavailable');
+    }
+
+    final questions = (_interview!['questions'] as List<dynamic>? ?? const []);
+    final answers = (_interview!['answers'] as List<dynamic>? ?? const []);
+    final evaluations =
+        (_interview!['evaluations'] as List<dynamic>? ?? const []);
     final finalResult = _interview!['finalResult'];
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        /// 🏁 Final Score
         Card(
-          elevation: 2,
           child: ListTile(
             title: const Text('Final Score'),
             trailing: Text(
@@ -73,10 +104,7 @@ class _InterviewReviewScreenState extends State<InterviewReviewScreen> {
             ),
           ),
         ),
-
         const SizedBox(height: 24),
-
-        /// 📄 Question-by-question review
         ...List.generate(questions.length, (i) {
           final q = questions[i];
 
@@ -102,20 +130,17 @@ class _InterviewReviewScreenState extends State<InterviewReviewScreen> {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-
                   const Text(
                     'Your Answer:',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   Text(a['text'] ?? '-'),
-
                   const SizedBox(height: 8),
-
                   const Text(
                     'AI Feedback:',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  Text(e['feedback'] ?? 'No feedback'),
+                  Text(_feedbackText(e)),
                 ],
               ),
             ),

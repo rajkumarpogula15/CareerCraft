@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../services/interview_api.dart';
+import '../widgets/common/state_views.dart';
 import '../widgets/interview/interview_progress.dart';
+import '../widgets/loading/app_skeleton.dart';
 import 'interview_result_screen.dart';
 
 class InterviewSessionScreen extends StatefulWidget {
@@ -22,7 +24,8 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
   String? sessionId;
   String? currentQuestion;
   int currentIndex = 0;
-  bool loading = true;
+  bool initialLoading = true;
+  bool submitting = false;
   String? errorMessage;
 
   final TextEditingController _answerCtrl = TextEditingController();
@@ -35,7 +38,7 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
 
   Future<void> _startInterview() async {
     setState(() {
-      loading = true;
+      initialLoading = true;
       errorMessage = null;
     });
 
@@ -45,9 +48,7 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
         difficulty: widget.difficulty,
       );
 
-      final firstQuestion = await InterviewApi.getFirstQuestion(
-        createdSessionId,
-      );
+      final firstQuestion = await InterviewApi.getFirstQuestion(createdSessionId);
 
       if (!mounted) return;
 
@@ -55,22 +56,22 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
         sessionId = createdSessionId;
         currentQuestion = firstQuestion;
         currentIndex = 0;
-        loading = false;
+        initialLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         errorMessage = 'Failed to start interview';
-        loading = false;
+        initialLoading = false;
       });
     }
   }
 
   Future<void> _submitAnswer() async {
     final answer = _answerCtrl.text.trim();
-    if (answer.isEmpty || sessionId == null) return;
+    if (answer.isEmpty || sessionId == null || submitting) return;
 
-    setState(() => loading = true);
+    setState(() => submitting = true);
 
     try {
       final response = await InterviewApi.submitAnswer(sessionId!, answer);
@@ -92,13 +93,13 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
       setState(() {
         currentIndex = response['questionIndex'] ?? currentIndex;
         currentQuestion = response['question'];
-        loading = false;
+        submitting = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         errorMessage = 'Failed to submit answer';
-        loading = false;
+        submitting = false;
       });
     }
   }
@@ -111,52 +112,38 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading && currentQuestion == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (initialLoading && currentQuestion == null) {
+      return const Scaffold(body: CardListSkeleton(itemCount: 3, itemHeight: 120));
     }
 
     if (errorMessage != null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Mock Interview')),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(errorMessage!, style: const TextStyle(color: Colors.red)),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _startInterview,
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+        body: AppErrorState(message: errorMessage!, onRetry: _startInterview),
       );
     }
 
     if (currentQuestion == null) {
-      return const Scaffold(body: Center(child: Text('No question available')));
+      return const Scaffold(
+        body: AppEmptyState(title: 'No question available', icon: Icons.help_outline),
+      );
     }
+
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mock Interview'), elevation: 0),
       body: SafeArea(
         child: Column(
           children: [
-            // 🔹 Progress Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: InterviewProgress(current: currentIndex + 1, total: 10),
             ),
-
-            // 🔹 Question Area (Scrollable)
             Expanded(
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                ),
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
                   child: Column(
@@ -164,20 +151,20 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
                     children: [
                       Text(
                         'Question ${currentIndex + 1}',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelLarge?.copyWith(color: Colors.grey),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          color: Theme.of(context).colorScheme.primaryContainer,
+                          color: theme.colorScheme.primaryContainer,
                         ),
                         child: Text(
                           currentQuestion!,
-                          style: Theme.of(context).textTheme.titleMedium,
+                          style: theme.textTheme.titleMedium,
                         ),
                       ),
                     ],
@@ -185,14 +172,15 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
                 ),
               ),
             ),
-
-            // 🔹 Answer Input (Sticky Bottom)
             Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                boxShadow: const [
-                  BoxShadow(blurRadius: 8, color: Colors.black12),
+                color: theme.colorScheme.surface,
+                boxShadow: [
+                  BoxShadow(
+                    blurRadius: 8,
+                    color: theme.colorScheme.shadow.withValues(alpha: 0.1),
+                  ),
                 ],
               ),
               child: Row(
@@ -202,14 +190,14 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
                       controller: _answerCtrl,
                       minLines: 1,
                       maxLines: 5,
+                      enabled: !submitting,
                       decoration: const InputDecoration(
-                        hintText: 'Type your answer…',
-                        border: OutlineInputBorder(),
+                        hintText: 'Type your answer...',
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  loading
+                  submitting
                       ? const SizedBox(
                           width: 24,
                           height: 24,

@@ -14,15 +14,17 @@ class ChatInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           boxShadow: [
             BoxShadow(
               blurRadius: 10,
-              color: Colors.black.withOpacity(0.08),
+              color: theme.colorScheme.shadow.withValues(alpha: 0.08),
               offset: const Offset(0, -2),
             ),
           ],
@@ -34,15 +36,10 @@ class ChatInputBar extends StatelessWidget {
                 controller: controller,
                 minLines: 1,
                 maxLines: 4,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Ask about this repository...',
-                  filled: true,
-                  fillColor: Colors.grey.shade100,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
+                  prefixIcon: Icon(Icons.chat_bubble_outline),
+                  contentPadding: EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
                   ),
@@ -55,18 +52,18 @@ class ChatInputBar extends StatelessWidget {
               child: CircleAvatar(
                 radius: 22,
                 backgroundColor: sending
-                    ? Colors.grey
-                    : const Color(0xFF4F46E5),
+                    ? theme.colorScheme.outline
+                    : theme.colorScheme.primary,
                 child: sending
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: theme.colorScheme.onPrimary,
                         ),
                       )
-                    : const Icon(Icons.send, color: Colors.white),
+                    : Icon(Icons.send, color: theme.colorScheme.onPrimary),
               ),
             ),
           ],

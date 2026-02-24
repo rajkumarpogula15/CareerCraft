@@ -9,7 +9,10 @@ class ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isUser ? const Color(0xFFE5E7EB) : const Color(0xFFF8FAFC);
+    final theme = Theme.of(context);
+    final bgColor = isUser
+        ? theme.colorScheme.primaryContainer
+        : theme.colorScheme.surfaceContainerLow;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -24,12 +27,12 @@ class ChatBubble extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: isUser
                   ? null
-                  : Border.all(color: const Color(0xFFE5E7EB)),
+                  : Border.all(color: theme.colorScheme.outlineVariant),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ..._buildBotContent(),
+                ..._buildContent(context),
                 if (!isUser) _copyButton(context),
               ],
             ),
@@ -39,155 +42,111 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
-  // --------------------------------------------------
-  // CONTENT PARSER
-  // --------------------------------------------------
-  List<Widget> _buildBotContent() {
-    final lines = message.split('\n');
+  List<Widget> _buildContent(BuildContext context) {
+    final blocks = message.split('```');
     final widgets = <Widget>[];
 
-    bool inCodeBlock = false;
-    final codeBuffer = StringBuffer();
+    for (int i = 0; i < blocks.length; i++) {
+      final block = blocks[i];
+      final isCodeBlock = i.isOdd;
 
-    for (final line in lines) {
-      // ``` code block
-      if (line.trim().startsWith('```')) {
-        if (inCodeBlock) {
-          widgets.add(_codeBlock(codeBuffer.toString()));
-          codeBuffer.clear();
-        }
-        inCodeBlock = !inCodeBlock;
-        continue;
-      }
+      if (block.trim().isEmpty) continue;
 
-      if (inCodeBlock) {
-        codeBuffer.writeln(line);
-        continue;
-      }
-
-      // ## Heading
-      if (line.startsWith('## ')) {
-        widgets.add(_heading(line.replaceFirst('## ', '')));
-        continue;
-      }
-
-      // - bullet
-      if (line.trim().startsWith('- ')) {
-        widgets.add(_bullet(line.trim().substring(2)));
-        continue;
-      }
-
-      // * bullet
-      if (line.trim().startsWith('* ')) {
-        widgets.add(_bullet(line.trim().substring(2)));
-        continue;
-      }
-
-      // 1. numbered
-      if (RegExp(r'^\d+\.\s').hasMatch(line)) {
-        widgets.add(_numbered(line));
-        continue;
-      }
-
-      if (line.trim().isNotEmpty) {
-        widgets.add(_richText(line));
+      if (isCodeBlock) {
+        widgets.add(_codeBlock(context, block.trim()));
+      } else {
+        widgets.addAll(_buildTextLines(context, block));
       }
     }
 
     return widgets;
   }
 
-  // --------------------------------------------------
-  // TEXT STYLES
-  // --------------------------------------------------
-  Widget _heading(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 6),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 17,
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF0F172A),
-        ),
-      ),
-    );
-  }
+  List<Widget> _buildTextLines(BuildContext context, String text) {
+    final lines = text.split('\n');
+    final widgets = <Widget>[];
 
-  Widget _richText(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: SelectableText.rich(
-        TextSpan(children: _parseInline(text)),
-        style: const TextStyle(
-          fontSize: 15.5,
-          height: 1.65,
-          color: Color(0xFF0F172A),
-        ),
-      ),
-    );
-  }
+    for (final raw in lines) {
+      final line = raw.trimRight();
+      if (line.trim().isEmpty) continue;
 
-  Widget _bullet(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8, bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('• ', style: TextStyle(fontSize: 18)),
-          Expanded(child: _richText(text)),
-        ],
-      ),
-    );
-  }
-
-  Widget _numbered(String text) {
-    final parts = text.split(RegExp(r'\.\s'));
-    return Padding(
-      padding: const EdgeInsets.only(left: 8, bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${parts.first}. ',
-            style: const TextStyle(fontWeight: FontWeight.w600),
+      if (line.startsWith('## ')) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 10, bottom: 6),
+            child: Text(
+              line.replaceFirst('## ', ''),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
           ),
-          Expanded(child: _richText(parts.sublist(1).join('. '))),
+        );
+        continue;
+      }
+
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+        widgets.add(_bulletLine(context, line.trim().substring(2)));
+        continue;
+      }
+
+      if (RegExp(r'^\d+\.\s').hasMatch(line.trim())) {
+        final match = RegExp(r'^(\d+\.)\s(.*)$').firstMatch(line.trim());
+        final number = match?.group(1) ?? '';
+        final content = match?.group(2) ?? line;
+
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$number ',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Expanded(child: _inlineRichText(context, content)),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: _inlineRichText(context, line),
+        ),
+      );
+    }
+
+    return widgets;
+  }
+
+  Widget _bulletLine(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('- ', style: TextStyle(fontSize: 16)),
+          Expanded(child: _inlineRichText(context, text)),
         ],
       ),
     );
   }
 
-  // --------------------------------------------------
-  // CODE BLOCK (``` ``` )
-  // --------------------------------------------------
-  Widget _codeBlock(String code) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 214, 215, 221),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: SelectableText.rich(
-        TextSpan(children: _highlightCode(code)),
-        style: const TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 14,
-          height: 1.5,
-          fontStyle: FontStyle.italic,
-        ),
-      ),
+  Widget _inlineRichText(BuildContext context, String text) {
+    return SelectableText.rich(
+      TextSpan(children: _parseInlineSpans(context, text)),
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.6),
     );
   }
 
-  // --------------------------------------------------
-  // INLINE PARSER (**bold**, *italic*, `code`, 'code')
-  // --------------------------------------------------
-  List<TextSpan> _parseInline(String text) {
-    final spans = <TextSpan>[];
-    final regex = RegExp(r"(\*\*.*?\*\*|\*.*?\*|`.*?`|'.*?')");
+  List<InlineSpan> _parseInlineSpans(BuildContext context, String text) {
+    final spans = <InlineSpan>[];
+    final regex = RegExp(r'(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)');
 
     int lastIndex = 0;
 
@@ -196,25 +155,27 @@ class ChatBubble extends StatelessWidget {
         spans.add(TextSpan(text: text.substring(lastIndex, match.start)));
       }
 
-      final value = match.group(0)!;
+      final token = match.group(0)!;
 
-      if (value.startsWith('**')) {
+      if (token.startsWith('**') && token.endsWith('**')) {
         spans.add(
           TextSpan(
-            text: value.replaceAll('**', ''),
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            text: token.substring(2, token.length - 2),
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         );
-      } else if (value.startsWith('*')) {
+      } else if (token.startsWith('*') && token.endsWith('*')) {
         spans.add(
           TextSpan(
-            text: value.replaceAll('*', ''),
+            text: token.substring(1, token.length - 1),
             style: const TextStyle(fontStyle: FontStyle.italic),
           ),
         );
+      } else if (token.startsWith('`') && token.endsWith('`')) {
+        final code = token.substring(1, token.length - 1);
+        spans.addAll(_highlightCode(context, code, inline: true));
       } else {
-        // inline code
-        spans.addAll(_highlightCode(value.substring(1, value.length - 1)));
+        spans.add(TextSpan(text: token));
       }
 
       lastIndex = match.end;
@@ -227,55 +188,113 @@ class ChatBubble extends StatelessWidget {
     return spans;
   }
 
-  // --------------------------------------------------
-  // KEYWORD HIGHLIGHTING (ALL REQUESTED LANGS)
-  // --------------------------------------------------
-  List<TextSpan> _highlightCode(String code) {
-    final keywords = {
-      // common
-      'if', 'else', 'for', 'while', 'return', 'break', 'continue',
-      'true', 'false', 'null',
+  Widget _codeBlock(BuildContext context, String code) {
+    final theme = Theme.of(context);
 
-      // Java / C / C++
-      'int', 'double', 'float', 'char', 'void', 'static', 'class',
-      'public', 'private', 'protected', 'new',
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SelectableText.rich(
+        TextSpan(children: _highlightCode(context, code, inline: false)),
+        style: const TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 13.5,
+          height: 1.45,
+        ),
+      ),
+    );
+  }
 
-      // JS / TS / MERN / Next
-      'const', 'let', 'var', 'function', 'async', 'await',
-      'import', 'export', 'from', 'default',
-
-      // Python
-      'def', 'None', 'self', 'lambda',
-
-      // Dart / Flutter
-      'final', 'var', 'Widget', 'BuildContext', 'State',
-      'setState', 'build',
-
-      // HTML / CSS
-      'div', 'span', 'body', 'html', 'class', 'id',
+  List<InlineSpan> _highlightCode(
+    BuildContext context,
+    String code, {
+    required bool inline,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final keywords = <String>{
+      'if',
+      'else',
+      'for',
+      'while',
+      'return',
+      'break',
+      'continue',
+      'true',
+      'false',
+      'null',
+      'const',
+      'let',
+      'var',
+      'function',
+      'async',
+      'await',
+      'import',
+      'export',
+      'from',
+      'default',
+      'class',
+      'new',
+      'final',
+      'Widget',
+      'BuildContext',
+      'State',
+      'setState',
+      'build',
+      'def',
+      'self',
+      'None',
+      'int',
+      'double',
+      'float',
+      'void',
+      'public',
+      'private',
+      'protected',
+      'div',
+      'span',
+      'body',
+      'html',
     };
 
-    final spans = <TextSpan>[];
-    final parts = code.split(RegExp(r'(\s+)'));
+    final tokenRegex = RegExp(r'''(\s+|[{}()[\].,;:+\-*/=<>&|!?"'`~])''');
+    final parts = code.split(tokenRegex);
+    final matches = tokenRegex.allMatches(code).toList();
+    final spans = <InlineSpan>[];
 
-    for (final part in parts) {
-      if (keywords.contains(part)) {
+    for (int i = 0; i < parts.length; i++) {
+      final token = parts[i];
+      if (token.isNotEmpty) {
+        final isKeyword = keywords.contains(token);
         spans.add(
           TextSpan(
-            text: part,
-            style: const TextStyle(
-              color: Color(0xFF38BDF8),
-              fontWeight: FontWeight.w600,
+            text: token,
+            style: TextStyle(
+              color: isKeyword ? scheme.primary : scheme.onSurfaceVariant,
+              fontWeight: isKeyword ? FontWeight.w700 : FontWeight.w400,
+              fontFamily: 'monospace',
+              backgroundColor: inline
+                  ? scheme.surfaceContainerHighest
+                  : Colors.transparent,
             ),
           ),
         );
-      } else {
+      }
+
+      if (i < matches.length) {
         spans.add(
           TextSpan(
-            text: part,
-            style: const TextStyle(
-              color: Color.fromARGB(255, 72, 97, 37),
-              fontStyle: FontStyle.italic,
+            text: matches[i].group(0),
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
+              fontFamily: 'monospace',
+              backgroundColor: inline
+                  ? scheme.surfaceContainerHighest
+                  : Colors.transparent,
             ),
           ),
         );
@@ -285,10 +304,9 @@ class ChatBubble extends StatelessWidget {
     return spans;
   }
 
-  // --------------------------------------------------
-  // COPY BUTTON
-  // --------------------------------------------------
   Widget _copyButton(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Align(
@@ -301,18 +319,24 @@ class ChatBubble extends StatelessWidget {
               const SnackBar(
                 content: Text('Copied'),
                 duration: Duration(milliseconds: 900),
-                behavior: SnackBarBehavior.floating,
               ),
             );
           },
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.copy_rounded, size: 16, color: Color(0xFF64748B)),
-              SizedBox(width: 4),
+              Icon(
+                Icons.copy_rounded,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 4),
               Text(
                 'Copy',
-                style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),

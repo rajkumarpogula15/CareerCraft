@@ -1,61 +1,52 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'dart:async';
 
-import '../state/app_state.dart';
-import '../config/app_config.dart';
-import '../widgets/repo_card.dart';
+import 'package:flutter/material.dart';
+
+import '../screens/interview_review_screen.dart';
+import '../screens/repo_chat_screen.dart';
+import '../screens/settings_screen.dart';
+import '../services/search_service.dart';
+import '../state/theme_controller.dart';
 
 class TopBar extends StatelessWidget implements PreferredSizeWidget {
-  const TopBar({super.key});
+  final ThemeController themeController;
+
+  const TopBar({super.key, required this.themeController});
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return AppBar(
       elevation: 0.5,
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.white,
       toolbarHeight: 56,
       titleSpacing: 12,
-
-      title: const Text(
+      title: Text(
         'CareerCraft',
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF0F172A),
-          fontSize: 20,
-        ),
+        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
       ),
-
       actions: [
         IconButton(
           icon: const Icon(Icons.search),
-          color: const Color(0xFF0F172A),
+          tooltip: 'Search',
           onPressed: () => _openSearch(context),
         ),
         IconButton(
-          icon: const Icon(Icons.notifications_none),
-          color: const Color(0xFF0F172A),
+          icon: const Icon(Icons.settings_outlined),
+          tooltip: 'Settings',
           onPressed: () {
-            showDialog(
-              context: context,
-              builder: (_) => AlertDialog(
-                title: const Text('Notifications'),
-                content: const Text('No notifications received'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('OK'),
-                  ),
-                ],
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SettingsScreen(themeController: themeController),
               ),
             );
           },
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
       ],
     );
   }
@@ -64,118 +55,199 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => const _RepoSearchSheet(),
+      showDragHandle: true,
+      builder: (_) => const _GlobalSearchSheet(),
     );
   }
 }
 
-/* ===========================
-   SEARCH SHEET
-=========================== */
-
-class _RepoSearchSheet extends StatefulWidget {
-  const _RepoSearchSheet();
+class _GlobalSearchSheet extends StatefulWidget {
+  const _GlobalSearchSheet();
 
   @override
-  State<_RepoSearchSheet> createState() => _RepoSearchSheetState();
+  State<_GlobalSearchSheet> createState() => _GlobalSearchSheetState();
 }
 
-class _RepoSearchSheetState extends State<_RepoSearchSheet> {
+class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
   final TextEditingController _controller = TextEditingController();
+  Timer? _debounce;
 
-  bool loading = false;
-  List<dynamic> results = [];
-
-  final List<String> recentSearches = [
-    'portfolio',
-    'flutter',
-    'backend',
-    'api',
-  ];
+  bool _loading = false;
+  String _activeQuery = '';
+  List<dynamic> _repos = [];
+  List<dynamic> _chats = [];
+  List<dynamic> _interviews = [];
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_onSearch);
+    _controller.addListener(_onChanged);
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _onSearch() async {
+  void _onChanged() {
     final query = _controller.text.trim();
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _runSearch(query);
+    });
+  }
 
+  Future<void> _runSearch(String query) async {
+    if (!mounted) return;
     if (query.isEmpty) {
-      setState(() => results = []);
+      setState(() {
+        _activeQuery = '';
+        _repos = [];
+        _chats = [];
+        _interviews = [];
+      });
       return;
     }
 
-    setState(() => loading = true);
+    setState(() {
+      _loading = true;
+      _activeQuery = query;
+    });
 
     try {
-      final res = await http.get(
-        Uri.parse('${AppConfig.backendBaseUrl}/auth/github/repos?name=$query'),
-        headers: {'Authorization': 'Bearer ${AppState.jwt}'},
-      );
-
-      if (res.statusCode == 200) {
-        results = jsonDecode(res.body);
-      } else {
-        results = [];
-      }
+      final result = await SearchService.globalSearch(query);
+      if (!mounted) return;
+      setState(() {
+        _repos = List<dynamic>.from(result['repos'] ?? const []);
+        _chats = List<dynamic>.from(result['chats'] ?? const []);
+        _interviews = List<dynamic>.from(result['interviews'] ?? const []);
+        _loading = false;
+      });
     } catch (_) {
-      results = [];
+      if (!mounted) return;
+      setState(() {
+        _repos = [];
+        _chats = [];
+        _interviews = [];
+        _loading = false;
+      });
     }
-
-    setState(() => loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasResults =
+        _repos.isNotEmpty || _chats.isNotEmpty || _interviews.isNotEmpty;
+
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.85,
+        height: MediaQuery.of(context).size.height * 0.88,
         child: Column(
           children: [
-            const SizedBox(height: 12),
-
-            // 🔍 Search Field
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: TextField(
                 controller: _controller,
                 autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Search repositories...',
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: const Color(0xFFF1F5F9),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
+                decoration: const InputDecoration(
+                  hintText: 'Search repos, chats, interviews...',
+                  prefixIcon: Icon(Icons.search),
                 ),
               ),
             ),
-
             const SizedBox(height: 12),
-
             Expanded(
-              child: loading
+              child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : _controller.text.isEmpty
-                  ? _buildRecentSearches()
-                  : _buildResults(),
+                  : (_activeQuery.isEmpty)
+                  ? const Center(child: Text('Start typing to search'))
+                  : (!hasResults)
+                  ? const Center(child: Text('No results found'))
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(10, 2, 10, 12),
+                      children: [
+                        if (_repos.isNotEmpty) ...[
+                          _sectionTitle(context, 'Repositories'),
+                          ..._repos.map(
+                            (repo) => _searchTile(
+                              context: context,
+                              icon: Icons.folder_open_rounded,
+                              title: repo['name'] ?? 'Unnamed Repo',
+                              subtitle: repo['description'] ?? 'Repository',
+                              query: _activeQuery,
+                              onTap: () {
+                                final fullName =
+                                    (repo['full_name'] ?? '').toString();
+                                final owner = fullName.contains('/')
+                                    ? fullName.split('/').first
+                                    : 'unknown';
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => RepoChatScreen(
+                                      owner: owner,
+                                      repo: repo['name'] ?? '',
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        if (_chats.isNotEmpty) ...[
+                          _sectionTitle(context, 'Chats'),
+                          ..._chats.map((chat) => _searchTile(
+                                context: context,
+                                icon: Icons.chat_bubble_outline,
+                                title: chat['repoName'] ?? 'Repo chat',
+                                subtitle: chat['title'] ?? 'Repository assistant',
+                                query: _activeQuery,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => RepoChatScreen(
+                                        owner: chat['repoOwner'] ?? 'unknown',
+                                        repo: chat['repoName'] ?? '',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )),
+                          const SizedBox(height: 8),
+                        ],
+                        if (_interviews.isNotEmpty) ...[
+                          _sectionTitle(context, 'Interview History'),
+                          ..._interviews.map((interview) {
+                            final score = interview['score'];
+                            final subtitle = score != null
+                                ? 'Score: $score · ${interview['difficulty']}'
+                                : 'Completed interview';
+                            return _searchTile(
+                              context: context,
+                              icon: Icons.mic_none_rounded,
+                              title: 'Interview (${interview['difficulty']})',
+                              subtitle: subtitle,
+                              query: _activeQuery,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => InterviewReviewScreen(
+                                      sessionId: interview['id'].toString(),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
             ),
           ],
         ),
@@ -183,56 +255,77 @@ class _RepoSearchSheetState extends State<_RepoSearchSheet> {
     );
   }
 
-  Widget _buildRecentSearches() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const Text(
-          'Recent searches',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 12),
-        ...recentSearches.map(
-          (q) => ListTile(
-            leading: const Icon(Icons.history),
-            title: Text(q),
-            onTap: () {
-              _controller.text = q;
-              _onSearch();
-            },
-          ),
-        ),
-      ],
+  Widget _sectionTitle(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+      child: Text(
+        title,
+        style: Theme.of(
+          context,
+        ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
     );
   }
 
-  Widget _buildResults() {
-    if (results.isEmpty) {
-      return const Center(child: Text('No repositories found'));
+  Widget _searchTile({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String query,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(icon),
+        title: _highlightedText(context, title, query, isTitle: true),
+        subtitle: _highlightedText(context, subtitle, query),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _highlightedText(
+    BuildContext context,
+    String text,
+    String query, {
+    bool isTitle = false,
+  }) {
+    final theme = Theme.of(context);
+    final lower = text.toLowerCase();
+    final q = query.toLowerCase();
+    final index = lower.indexOf(q);
+
+    if (q.isEmpty || index < 0) {
+      return Text(
+        text,
+        style: isTitle ? theme.textTheme.titleSmall : theme.textTheme.bodySmall,
+      );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(0),
-      itemCount: results.length,
-      itemBuilder: (context, index) {
-        final repo = results[index];
+    final before = text.substring(0, index);
+    final match = text.substring(index, index + q.length);
+    final after = text.substring(index + q.length);
 
-        final fullName = repo['full_name'] ?? '';
-        final owner = fullName.contains('/')
-            ? fullName.split('/')[0]
-            : 'unknown';
-
-        return RepoCard(
-          repoId: repo['id'],
-          name: repo['name'] ?? 'Unnamed Repo',
-          description: repo['description'] ?? '',
-          isPrivate: repo['private'] ?? false,
-          owner: owner,
-          htmlUrl: repo['html_url'],
-          isFavourite: repo['favourite'] ?? false,
-          language: repo['language'],
-        );
-      },
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: before),
+          TextSpan(
+            text: match,
+            style: TextStyle(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          TextSpan(text: after),
+        ],
+      ),
+      style: isTitle ? theme.textTheme.titleSmall : theme.textTheme.bodySmall,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

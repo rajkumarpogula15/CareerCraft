@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/github_api.dart';
+import '../widgets/loading/app_skeleton.dart';
 import 'interview_session_screen.dart';
 
 class InterviewSetupScreen extends StatefulWidget {
@@ -26,6 +27,11 @@ class _InterviewSetupScreenState extends State<InterviewSetupScreen> {
   }
 
   Future<void> _loadRepos() async {
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+
     try {
       final data = await GithubApi.fetchRepos();
       if (!mounted) return;
@@ -48,7 +54,7 @@ class _InterviewSetupScreenState extends State<InterviewSetupScreen> {
   Future<void> _startInterview() async {
     if (selectedRepoIds.length < 2 || selectedRepoIds.length > 4) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select 2–4 repositories')),
+        const SnackBar(content: Text('Please select 2-4 repositories')),
       );
       return;
     }
@@ -97,7 +103,7 @@ class _InterviewSetupScreenState extends State<InterviewSetupScreen> {
     final theme = Theme.of(context);
 
     if (loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: CardListSkeleton(itemCount: 6, itemHeight: 74));
     }
 
     return Scaffold(
@@ -108,22 +114,55 @@ class _InterviewSetupScreenState extends State<InterviewSetupScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _Header(),
-
+                Text(
+                  'Let\'s get you ready',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Choose repositories and difficulty to generate a personalized interview session.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 if (errorMessage != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    errorMessage!,
-                    style: const TextStyle(color: Colors.red),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: theme.colorScheme.error),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            errorMessage!,
+                            style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-
                 const SizedBox(height: 24),
-                _SectionTitle(
-                  title: 'Select Repositories',
-                  subtitle: 'Choose 2–4 projects to be interviewed on',
+                Text(
+                  'Select Repositories',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-
+                const SizedBox(height: 4),
+                Text(
+                  'Pick 2-4 projects to be interviewed on',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 ...repos.map(
                   (repo) => _RepoCard(
@@ -139,13 +178,20 @@ class _InterviewSetupScreenState extends State<InterviewSetupScreen> {
                     },
                   ),
                 ),
-
-                const SizedBox(height: 32),
-                _SectionTitle(
-                  title: 'Difficulty',
-                  subtitle: 'How challenging should the interview be?',
+                const SizedBox(height: 28),
+                Text(
+                  'Difficulty',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-
+                const SizedBox(height: 4),
+                Text(
+                  'How challenging should the interview be?',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 SegmentedButton<String>(
                   segments: const [
@@ -158,13 +204,10 @@ class _InterviewSetupScreenState extends State<InterviewSetupScreen> {
                       ? null
                       : (val) => setState(() => difficulty = val.first),
                 ),
-
                 const SizedBox(height: 100),
               ],
             ),
           ),
-
-          // Sticky bottom CTA
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -180,10 +223,7 @@ class _InterviewSetupScreenState extends State<InterviewSetupScreen> {
                             SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                             SizedBox(width: 12),
                             Text('Preparing interview...'),
@@ -199,50 +239,6 @@ class _InterviewSetupScreenState extends State<InterviewSetupScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/* -------------------- UI Components -------------------- */
-
-class _Header extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        Text(
-          'Let’s get you ready',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-        ),
-        SizedBox(height: 8),
-        Text(
-          'Select repositories and difficulty to generate a personalized interview session.',
-          style: TextStyle(color: Colors.grey),
-        ),
-      ],
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _SectionTitle({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(color: Colors.grey)),
-      ],
     );
   }
 }
@@ -268,7 +264,7 @@ class _RepoCard extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
         color: selected
-            ? theme.colorScheme.primary.withOpacity(0.08)
+            ? theme.colorScheme.primary.withValues(alpha: 0.12)
             : theme.cardColor,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
@@ -280,7 +276,9 @@ class _RepoCard extends StatelessWidget {
               children: [
                 Icon(
                   selected ? Icons.check_circle : Icons.circle_outlined,
-                  color: selected ? theme.colorScheme.primary : Colors.grey,
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -289,8 +287,7 @@ class _RepoCard extends StatelessWidget {
                     children: [
                       Text(
                         repo['name'],
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -299,7 +296,9 @@ class _RepoCard extends StatelessWidget {
                         repo['description'] ?? 'No description',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.grey),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),

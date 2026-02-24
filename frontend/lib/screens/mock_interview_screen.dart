@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../state/app_state.dart';
-import '../widgets/logoutView.dart';
 import '../services/interview_api.dart';
-import 'interview_setup_screen.dart';
+import '../state/app_state.dart';
+import '../widgets/common/state_views.dart';
+import '../widgets/loading/app_skeleton.dart';
+import '../widgets/logoutView.dart';
 import 'interview_review_screen.dart';
+import 'interview_setup_screen.dart';
 
 class MockInterviewScreen extends StatefulWidget {
   const MockInterviewScreen({super.key});
@@ -24,14 +26,53 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     _loadInterviewHistory();
   }
 
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return '${value[0].toUpperCase()}${value.substring(1).toLowerCase()}';
+  }
+
+  String _formatDate(dynamic raw) {
+    final parsed = raw is String ? DateTime.tryParse(raw)?.toLocal() : null;
+    if (parsed == null) return '-';
+    final month = parsed.month.toString().padLeft(2, '0');
+    final day = parsed.day.toString().padLeft(2, '0');
+    return '${parsed.year}-$month-$day';
+  }
+
+  String _formatDuration(Map<String, dynamic> interview) {
+    final started = DateTime.tryParse(
+      (interview['startedAt'] ?? '').toString(),
+    );
+    final completed = DateTime.tryParse(
+      (interview['completedAt'] ?? '').toString(),
+    );
+    if (started == null || completed == null || completed.isBefore(started)) {
+      return '-';
+    }
+
+    final diff = completed.difference(started);
+    final minutes = diff.inMinutes;
+    final seconds = diff.inSeconds.remainder(60);
+    if (minutes == 0) return '${diff.inSeconds}s';
+    return '${minutes}m ${seconds}s';
+  }
+
   Future<void> _loadInterviewHistory() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
     try {
       final interviews = await InterviewApi.getInterviewHistory();
+      if (!mounted) return;
+
       setState(() {
         _interviews = interviews;
         _loading = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _error = 'Failed to load interview history';
         _loading = false;
@@ -46,7 +87,15 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mock Interview')),
+      appBar: AppBar(
+        title: const Text('Mock Interview'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadInterviewHistory,
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -59,18 +108,16 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Practice real interview questions based on your GitHub projects.',
+            Text(
+              'Practice real interview questions generated from your GitHub projects.',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 24),
-
-            /// ▶️ Start New Interview
+            const SizedBox(height: 20),
             Card(
-              elevation: 2,
               child: ListTile(
                 leading: const Icon(Icons.play_circle_fill),
                 title: const Text('Start New Mock Interview'),
-                subtitle: const Text('Project-based, adaptive'),
+                subtitle: const Text('Project-based and adaptive'),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -81,18 +128,14 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
                 },
               ),
             ),
-
-            const SizedBox(height: 32),
-
-            /// 🕘 History Section
+            const SizedBox(height: 24),
             Text(
               'Previous Interviews',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
-
+            const SizedBox(height: 10),
             Expanded(child: _buildHistory()),
           ],
         ),
@@ -102,38 +145,44 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
 
   Widget _buildHistory() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const CardListSkeleton(itemCount: 5, itemHeight: 78);
     }
 
     if (_error != null) {
-      return Center(child: Text(_error!));
+      return AppErrorState(message: _error!, onRetry: _loadInterviewHistory);
     }
 
     if (_interviews.isEmpty) {
-      return const Center(
-        child: Text(
-          'No interviews yet.\nStart your first mock interview!',
-          textAlign: TextAlign.center,
-        ),
+      return const AppEmptyState(
+        title: 'No interviews yet',
+        subtitle: 'Start your first mock interview to get AI feedback.',
+        icon: Icons.mic_none,
       );
     }
 
     return ListView.builder(
       itemCount: _interviews.length,
       itemBuilder: (context, index) {
-        final interview = _interviews[index];
+        final interview = Map<String, dynamic>.from(_interviews[index] as Map);
         final score = interview['finalResult']?['overallScore'];
+        final difficulty = _capitalize(
+          (interview['difficulty'] ?? '-').toString(),
+        );
+        final date = _formatDate(interview['completedAt']);
+        final duration = _formatDuration(interview);
 
         return Card(
-          elevation: 1,
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             leading: const Icon(Icons.history),
             title: Text(
-              'Difficulty: ${interview['difficulty'].toString().toUpperCase()}',
+              '$difficulty interview',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
-              score != null ? 'Final Score: $score' : 'Completed interview',
+              'Score: ${score ?? '-'}  |  Date: $date  |  Duration: $duration',
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {

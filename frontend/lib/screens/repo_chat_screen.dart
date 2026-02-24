@@ -1,12 +1,15 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
-import '../state/app_state.dart';
 import '../models/chat_message.dart';
+import '../state/app_state.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/chat_input_bar.dart';
+import '../widgets/common/state_views.dart';
+import '../widgets/loading/app_skeleton.dart';
 
 class RepoChatScreen extends StatefulWidget {
   final String owner;
@@ -25,6 +28,7 @@ class _RepoChatScreenState extends State<RepoChatScreen> {
   bool loading = true;
   bool sending = false;
   String? sessionId;
+  String? error;
 
   final List<ChatMessage> messages = [];
 
@@ -41,10 +45,12 @@ class _RepoChatScreenState extends State<RepoChatScreen> {
     super.dispose();
   }
 
-  // ----------------------------
-  // INIT CHAT SESSION
-  // ----------------------------
   Future<void> _initChat() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+
     try {
       final uri = Uri.parse('${AppConfig.backendBaseUrl}/chat/session');
 
@@ -61,22 +67,17 @@ class _RepoChatScreenState extends State<RepoChatScreen> {
       sessionId = data['_id'];
 
       await _loadHistory();
-    } catch (e) {
-      debugPrint('🚨🚨🚨🚨🚨🚨Init chat error: $e');
+    } catch (_) {
+      error = 'Could not start chat session';
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  // ----------------------------
-  // LOAD CHAT HISTORY
-  // ----------------------------
   Future<void> _loadHistory() async {
     if (sessionId == null) return;
 
-    final uri = Uri.parse(
-      '${AppConfig.backendBaseUrl}/chat/history/$sessionId',
-    );
+    final uri = Uri.parse('${AppConfig.backendBaseUrl}/chat/history/$sessionId');
 
     final response = await http.get(
       uri,
@@ -94,9 +95,6 @@ class _RepoChatScreenState extends State<RepoChatScreen> {
     _scrollToBottom(jump: true);
   }
 
-  // ----------------------------
-  // SEND MESSAGE
-  // ----------------------------
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || sending || sessionId == null) return;
@@ -129,17 +127,13 @@ class _RepoChatScreenState extends State<RepoChatScreen> {
           sending = false;
         });
       }
-    } catch (e) {
-      debugPrint('🚨🚨🚨🚨🚨🚨 Send message failed! Error: $e');
+    } catch (_) {
       if (mounted) setState(() => sending = false);
     }
 
     _scrollToBottom();
   }
 
-  // ----------------------------
-  // SCROLL HANDLING
-  // ----------------------------
   void _scrollToBottom({bool jump = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
@@ -158,18 +152,16 @@ class _RepoChatScreenState extends State<RepoChatScreen> {
     });
   }
 
-  // ----------------------------
-  // UI
-  // ----------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('${widget.repo} Assistant'), elevation: 0.5),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const ChatScreenSkeleton()
+          : (error != null)
+          ? AppErrorState(message: error!, onRetry: _initChat)
           : Column(
               children: [
-                /// CHAT LIST
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
@@ -192,8 +184,6 @@ class _RepoChatScreenState extends State<RepoChatScreen> {
                     },
                   ),
                 ),
-
-                /// INPUT BAR
                 ChatInputBar(
                   controller: _controller,
                   sending: sending,

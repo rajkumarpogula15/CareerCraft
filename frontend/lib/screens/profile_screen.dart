@@ -1,19 +1,22 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:app_links/app_links.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../state/app_state.dart';
-import '../widgets/primary_button.dart';
-import '../widgets/logoutView.dart';
 import '../config/app_config.dart';
+import '../services/dashboard_service.dart';
+import '../state/app_state.dart';
+import '../widgets/common/state_views.dart';
+import '../widgets/loading/app_skeleton.dart';
+import '../widgets/logoutView.dart';
+import '../widgets/primary_button.dart';
+import '../widgets/skill_progress_card.dart';
 import 'resume_builder_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
-  final VoidCallback onLogin; // triggers OAuth (browser open)
+  final VoidCallback onLogin;
 
   const ProfileScreen({
     super.key,
@@ -27,54 +30,40 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final String backendUrl = AppConfig.backendBaseUrl;
-
-  final AppLinks _appLinks = AppLinks();
-  StreamSubscription<Uri>? _linkSub;
-
   bool loading = false;
-
-  // =====================================================
-  // =================== LIFECYCLE =======================
-  // =====================================================
 
   @override
   void initState() {
     super.initState();
-
     if (AppState.isLoggedIn && AppState.jwt != null) {
       _loadProfile();
     }
   }
 
-  @override
-  void dispose() {
-    _linkSub?.cancel();
-    super.dispose();
-  }
-
-  // =====================================================
-  // ================= PROFILE FETCH =====================
-  // =====================================================
-
   Future<void> _loadProfile() async {
     setState(() => loading = true);
 
     try {
-      final res = await http.get(
-        Uri.parse('$backendUrl/auth/github/profile'),
-        headers: {
-          'Authorization': 'Bearer ${AppState.jwt}',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (res.statusCode == 200) {
-        AppState.user = json.decode(res.body);
+      final dashboard = await DashboardService.fetchDashboard();
+      if (dashboard != null) {
+        AppState.dashboard = dashboard;
+        AppState.user = Map<String, dynamic>.from(dashboard['profile'] ?? {});
       } else {
-        AppState.user = null;
+        final res = await http.get(
+          Uri.parse('$backendUrl/auth/github/profile'),
+          headers: {
+            'Authorization': 'Bearer ${AppState.jwt}',
+            'Content-Type': 'application/json',
+          },
+        );
+
+        if (res.statusCode == 200) {
+          AppState.user = json.decode(res.body);
+        } else {
+          AppState.user = null;
+        }
       }
-    } catch (e) {
-      debugPrint('❌ Profile load error: $e');
+    } catch (_) {
       AppState.user = null;
     } finally {
       if (mounted) {
@@ -83,123 +72,122 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // =====================================================
-  // =================== UI ==============================
-  // =====================================================
-
   @override
   Widget build(BuildContext context) {
-    // 🔒 NOT LOGGED IN → show LoggedOutView (no login button now)
     if (!AppState.isLoggedIn) {
       return const LoggedOutView();
     }
 
-    // ⏳ LOADING
     if (loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const ProfileSkeleton();
     }
 
     final user = AppState.user;
-
-    // ❌ ERROR
     if (user == null) {
-      return const Center(child: Text('Failed to load profile'));
+      return AppErrorState(message: 'Failed to load profile', onRetry: _loadProfile);
     }
 
-    // ✅ PROFILE VIEW
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    final stats = (AppState.dashboard?['stats'] as Map<String, dynamic>?) ?? {};
+    final languageDistribution =
+        (AppState.dashboard?['languageDistribution'] as Map<String, dynamic>?) ?? {};
+
+    return RefreshIndicator(
+      onRefresh: _loadProfile,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
         children: [
-          _profileHeader(user),
-          const SizedBox(height: 24),
-          _statsSection(user),
-          const SizedBox(height: 32),
-          _actionsSection(),
+          _profileHeader(user, stats),
+          const SizedBox(height: 12),
+          _statTile('Public Repositories', user['public_repos'] ?? 0),
+          _statTile('Followers', user['followers'] ?? 0),
+          _statTile('Following', user['following'] ?? 0),
+          const SizedBox(height: 12),
+          SkillProgressCard(
+            distribution: languageDistribution,
+            title: 'Language Heatmap',
+          ),
+          const SizedBox(height: 12),
+          _actionsSection(user),
         ],
       ),
     );
   }
 
-  // =====================================================
-  // ================= PROFILE UI ========================
-  // =====================================================
+  Widget _profileHeader(Map user, Map<String, dynamic> stats) {
+    final theme = Theme.of(context);
+    final streak = stats['loginStreak'] ?? 0;
 
-  Widget _profileHeader(Map user) {
     return Card(
-      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
         child: Column(
           children: [
             CircleAvatar(
-              radius: 48,
+              radius: 40,
               backgroundImage: user['avatar'] != null
                   ? NetworkImage(user['avatar'])
                   : null,
               child: user['avatar'] == null
-                  ? const Icon(Icons.person, size: 48)
+                  ? const Icon(Icons.person, size: 40)
                   : null,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               user['name'] ?? 'No Name',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             if (user['username'] != null)
               Text(
                 '@${user['username']}',
-                style: const TextStyle(color: Colors.grey),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            if (user['email'] != null)
-              Text(user['email'], style: const TextStyle(color: Colors.grey)),
+            if (streak > 0) ...[
+              const SizedBox(height: 6),
+              Text(
+                '🔥 $streak-day login streak',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _openGitHubProfile(user['username']),
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('View on GitHub'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _statsSection(Map user) {
-    return Row(
-      children: [
-        _statCard('Repos', user['public_repos'] ?? 0),
-        _statCard('Followers', user['followers'] ?? 0),
-        _statCard('Following', user['following'] ?? 0),
-      ],
-    );
-  }
-
-  Widget _statCard(String label, int value) {
-    return Expanded(
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            children: [
-              Text(
-                value.toString(),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(label, style: const TextStyle(color: Colors.grey)),
-            ],
-          ),
+  Widget _statTile(String label, int value) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        dense: true,
+        title: Text(label),
+        trailing: Text(
+          value.toString(),
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
       ),
     );
   }
 
-  Widget _actionsSection() {
+  Widget _actionsSection(Map user) {
     return Column(
       children: [
         PrimaryButton(
-          label: 'Create Resume',
+          label: 'Build Resume',
           onTap: () {
             Navigator.push(
               context,
@@ -207,16 +195,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
           },
         ),
-
-        const SizedBox(height: 12),
-        OutlinedButton(onPressed: _confirmLogout, child: const Text('Logout')),
+        const SizedBox(height: 10),
+        OutlinedButton(
+          onPressed: _confirmLogout,
+          child: Text(
+            'Logout',
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ),
       ],
     );
   }
-
-  // =====================================================
-  // ================= LOGOUT ============================
-  // =====================================================
 
   void _confirmLogout() {
     showDialog(
@@ -234,20 +223,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pop(ctx);
               _logout();
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Logout',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _logout() {
-    setState(() {
-      AppState.isLoggedIn = false;
-      AppState.jwt = null;
-      AppState.user = null;
-    });
-
+  Future<void> _logout() async {
+    await AppState.logout();
+    if (!mounted) return;
+    setState(() {});
     widget.onLogout();
+  }
+
+  Future<void> _openGitHubProfile(String? username) async {
+    if (username == null || username.isEmpty) return;
+    final uri = Uri.parse('https://github.com/$username');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }

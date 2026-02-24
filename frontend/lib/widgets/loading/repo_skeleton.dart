@@ -1,43 +1,33 @@
-import 'package:flutter/material.dart';
-import 'package:shimmer/shimmer.dart';
+﻿import 'package:flutter/material.dart';
+
+import 'app_skeleton.dart';
 
 class RepoSkeleton extends StatelessWidget {
   const RepoSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+    return AppSkeleton(
       child: Container(
-        padding: const EdgeInsets.all(6), // Smaller padding
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(6), // Smaller radius
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Column(
+        child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min, // Important: wrap content
           children: [
-            // Title
-            Container(height: 11, width: 110, color: Colors.grey),
-            const SizedBox(height: 4),
-
-            // Description line 1
-            Container(height: 8, width: double.infinity, color: Colors.grey),
-            const SizedBox(height: 3),
-
-            // Description line 2
-            Container(height: 8, width: 150, color: Colors.grey),
-            const SizedBox(height: 5),
-
-            // Bottom row
+            SkeletonBox(width: 120, height: 12),
+            SizedBox(height: 8),
+            SkeletonBox(width: double.infinity, height: 8),
+            SizedBox(height: 6),
+            SkeletonBox(width: 170, height: 8),
+            SizedBox(height: 10),
             Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(height: 7, width: 40, color: Colors.grey),
-                const SizedBox(width: 6),
-                Container(height: 7, width: 28, color: Colors.grey),
+                SkeletonBox(width: 44, height: 8),
+                SizedBox(width: 8),
+                SkeletonBox(width: 32, height: 8),
               ],
             ),
           ],

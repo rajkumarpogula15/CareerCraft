@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../services/interview_api.dart';
+import '../widgets/common/state_views.dart';
+import '../widgets/loading/app_skeleton.dart';
 
 class InterviewResultPopup extends StatelessWidget {
   final String sessionId;
@@ -8,114 +11,88 @@ class InterviewResultPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.6,
-      maxChildSize: 0.95,
-      builder: (_, controller) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: FutureBuilder(
-            future: InterviewApi.getFinalResult(sessionId),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
+    return Scaffold(
+      appBar: AppBar(title: const Text('Interview Result')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: InterviewApi.getFinalResult(sessionId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const CardListSkeleton(itemCount: 4, itemHeight: 120);
+          }
 
-              final result = snapshot.data!;
+          if (snapshot.hasError || !snapshot.hasData) {
+            return const AppErrorState(message: 'Could not load interview result');
+          }
 
-              return ListView(
-                controller: controller,
-                padding: const EdgeInsets.all(20),
-                children: [
-                  _dragHandle(),
-                  const SizedBox(height: 16),
+          final result = snapshot.data!;
 
-                  _scoreCard(context, result['overallScore']),
-                  const SizedBox(height: 20),
-
-                  _resultSection(
-                    title: 'Strengths',
-                    icon: Icons.check_circle,
-                    color: Colors.green,
-                    items: result['strongAreas'],
-                  ),
-
-                  _resultSection(
-                    title: 'Needs Improvement',
-                    icon: Icons.warning_amber_rounded,
-                    color: Colors.orange,
-                    items: result['weakAreas'],
-                  ),
-
-                  _resultSection(
-                    title: 'Suggestions',
-                    icon: Icons.lightbulb_outline,
-                    color: Colors.blue,
-                    items: result['improvements'],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _difficultyChip(result['suggestedDifficulty']),
-
-                  const SizedBox(height: 24),
-
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Continue',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _dragHandle() {
-    return Center(
-      child: Container(
-        width: 40,
-        height: 5,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade300,
-          borderRadius: BorderRadius.circular(10),
-        ),
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              _scoreCard(context, result['overallScore']),
+              const SizedBox(height: 20),
+              _resultSection(
+                context: context,
+                title: 'Strengths',
+                icon: Icons.check_circle,
+                color: Colors.green,
+                items: List<String>.from(result['strongAreas'] ?? const []),
+              ),
+              _resultSection(
+                context: context,
+                title: 'Needs Improvement',
+                icon: Icons.warning_amber_rounded,
+                color: Colors.orange,
+                items: List<String>.from(result['weakAreas'] ?? const []),
+              ),
+              _resultSection(
+                context: context,
+                title: 'Suggestions',
+                icon: Icons.lightbulb_outline,
+                color: Colors.blue,
+                items: List<String>.from(result['improvements'] ?? const []),
+              ),
+              const SizedBox(height: 12),
+              _difficultyChip(result['suggestedDifficulty']?.toString() ?? 'medium'),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Continue'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   Widget _scoreCard(BuildContext context, dynamic score) {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.indigo, Colors.indigo.shade400],
+          colors: [
+            theme.colorScheme.primary,
+            theme.colorScheme.primary.withValues(alpha: 0.75),
+          ],
         ),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
-          const Text('Overall Score', style: TextStyle(color: Colors.white70)),
+          Text(
+            'Overall Score',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             '$score / 100',
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              color: Colors.white,
+            style: theme.textTheme.headlineLarge?.copyWith(
+              color: theme.colorScheme.onPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -125,13 +102,15 @@ class InterviewResultPopup extends StatelessWidget {
   }
 
   Widget _resultSection({
+    required BuildContext context,
     required String title,
     required IconData icon,
     required Color color,
-    required List items,
+    required List<String> items,
   }) {
+    final list = items.isEmpty ? ['No notes available'] : items;
+
     return Card(
-      elevation: 0,
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
@@ -145,21 +124,20 @@ class InterviewResultPopup extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            ...items.map(
+            ...list.map(
               (e) => Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('•  '),
+                    const Text('-  '),
                     Expanded(child: Text(e)),
                   ],
                 ),

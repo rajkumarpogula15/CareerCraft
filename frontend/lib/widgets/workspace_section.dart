@@ -1,50 +1,29 @@
 import 'package:flutter/material.dart';
 
-import 'section_title.dart';
+import '../models/favourite_repo.dart';
 import '../services/activity_service.dart';
 import '../services/repository_service.dart';
-import '../models/favourite_repo.dart';
-import '../widgets/repo_card.dart';
-
-import '../widgets/loading/section_skeleton.dart';
+import 'loading/section_skeleton.dart';
+import 'repo_card.dart';
+import 'section_title.dart';
 
 class WorkspaceSection extends StatefulWidget {
-  const WorkspaceSection({Key? key}) : super(key: key);
+  const WorkspaceSection({super.key});
 
   @override
   State<WorkspaceSection> createState() => _WorkspaceSectionState();
 }
 
 class _WorkspaceSectionState extends State<WorkspaceSection> {
-  /// 🔧 Set to false after testing
-  static const bool _debugDelay = true;
-
   late Future<List<RecentActivity>> _activities;
   late Future<List<FavouriteRepo>> _favouriteRepos;
-
   bool _showAllFavourites = false;
 
   @override
   void initState() {
     super.initState();
-
-    _activities = _loadActivities();
-    _favouriteRepos = _loadFavourites();
-  }
-
-  /// ---------------- Forced 2s Delay Wrapper ----------------
-  Future<List<RecentActivity>> _loadActivities() async {
-    if (_debugDelay) {
-      await Future.delayed(const Duration(seconds: 2));
-    }
-    return ActivityService.fetchRecent();
-  }
-
-  Future<List<FavouriteRepo>> _loadFavourites() async {
-    if (_debugDelay) {
-      await Future.delayed(const Duration(seconds: 2));
-    }
-    return RepositoryService.fetchFavourites();
+    _activities = ActivityService.fetchRecent();
+    _favouriteRepos = RepositoryService.fetchFavourites();
   }
 
   @override
@@ -52,12 +31,8 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        /* =========================
-           FAVOURITE REPOSITORIES
-        ========================= */
         const SectionTitle(title: 'Favourite Repositories'),
-        const SizedBox(height: 12),
-
+        const SizedBox(height: 8),
         FutureBuilder<List<FavouriteRepo>>(
           future: _favouriteRepos,
           builder: (context, snapshot) {
@@ -73,9 +48,7 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
             }
 
             final repos = snapshot.data!;
-            final visibleRepos = _showAllFavourites
-                ? repos
-                : repos.take(3).toList();
+            final visibleRepos = _showAllFavourites ? repos : repos.take(3).toList();
 
             return Column(
               children: [
@@ -90,16 +63,11 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
                     isFavourite: true,
                   );
                 }),
-
                 if (repos.length > 3)
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _showAllFavourites = !_showAllFavourites;
-                        });
-                      },
+                      onPressed: () => setState(() => _showAllFavourites = !_showAllFavourites),
                       child: Text(
                         _showAllFavourites ? 'Show less' : 'See all',
                         style: const TextStyle(fontWeight: FontWeight.w600),
@@ -110,15 +78,9 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
             );
           },
         ),
-
-        const SizedBox(height: 4),
-
-        /* =========================
-           RECENT ACTIVITY
-        ========================= */
+        const SizedBox(height: 2),
         const SectionTitle(title: 'Recent Activity'),
-        const SizedBox(height: 12),
-
+        const SizedBox(height: 8),
         FutureBuilder<List<RecentActivity>>(
           future: _activities,
           builder: (context, snapshot) {
@@ -133,13 +95,10 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
               );
             }
 
-            return Column(
-              children: snapshot.data!.take(5).map(_activityCard).toList(),
-            );
+            return Column(children: snapshot.data!.take(5).map(_activityCard).toList());
           },
         ),
-
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
       ],
     );
   }
@@ -147,19 +106,16 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
   Widget _activityCard(RecentActivity activity) {
     return Card(
       elevation: 0.5,
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
             const Icon(Icons.bolt, color: Color(0xFF4F46E5), size: 20),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                activity.message,
-                style: const TextStyle(fontSize: 14),
-              ),
+              child: Text(activity.message, style: const TextStyle(fontSize: 14)),
             ),
           ],
         ),

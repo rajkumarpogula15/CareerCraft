@@ -10,8 +10,10 @@ class ResumePreviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade300,
+      backgroundColor: theme.colorScheme.surfaceContainerLow,
       appBar: AppBar(
         title: const Text('Resume Preview'),
         actions: [
@@ -31,94 +33,89 @@ class ResumePreviewScreen extends StatelessWidget {
       ),
       body: Center(
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 900),
+          constraints: const BoxConstraints(maxWidth: 920),
           margin: const EdgeInsets.all(20),
           padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 36),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(6),
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
-          child: SingleChildScrollView(child: _resumeBody()),
+          child: SingleChildScrollView(child: _resumeBody(context)),
         ),
       ),
     );
   }
 
-  // ================= BODY =================
-
-  Widget _resumeBody() {
+  Widget _resumeBody(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _header(),
+        _header(context),
         const SizedBox(height: 28),
-
-        _section('PROFESSIONAL SUMMARY', _summary()),
-        _section('SKILLS', _skills()),
-        _section('EXPERIENCE', _experience()),
-        _section('PROJECTS', _projects()),
-        _section('EDUCATION', _education()),
-        _section('ACHIEVEMENTS AND CERTIFICATIONS', _achievements()),
+        _section(context, 'PROFESSIONAL SUMMARY', _summary(context)),
+        _section(context, 'SKILLS', _skills(context)),
+        _section(context, 'EXPERIENCE', _experience(context)),
+        _section(context, 'PROJECTS', _projects(context)),
+        _section(context, 'EDUCATION', _education(context)),
+        _section(context, 'ACHIEVEMENTS AND CERTIFICATIONS', _achievements(context)),
       ],
     );
   }
 
-  // ================= HEADER =================
+  Widget _header(BuildContext context) {
+    final theme = Theme.of(context);
 
-  Widget _header() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           draft.profile['name'] ?? '',
-          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+          style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         if ((draft.profile['title'] ?? '').isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              draft.profile['title'],
-              style: const TextStyle(fontSize: 16),
-            ),
+            child: Text(draft.profile['title'], style: theme.textTheme.titleMedium),
           ),
         const SizedBox(height: 10),
         Wrap(
           spacing: 14,
           runSpacing: 6,
           children: [
-            _meta(draft.profile['email']),
-            _meta(draft.profile['phone']),
-            _meta(draft.profile['location']),
-            _meta(draft.profile['linkedin']),
-            _meta(draft.profile['portfolio']),
+            _meta(context, draft.profile['email']),
+            _meta(context, draft.profile['phone']),
+            _meta(context, draft.profile['location']),
+            _meta(context, draft.profile['linkedin']),
+            _meta(context, draft.profile['portfolio']),
           ].whereType<Widget>().toList(),
         ),
       ],
     );
   }
 
-  Widget _meta(dynamic value) {
-    if (value == null || value.toString().trim().isEmpty) {
-      return const SizedBox();
-    }
+  Widget? _meta(BuildContext context, dynamic value) {
+    if (value == null || value.toString().trim().isEmpty) return null;
     return Text(
       value.toString(),
-      style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
   }
 
-  // ================= SECTIONS =================
-
-  Widget _summary() {
-    if ((draft.summary ?? '').isEmpty) return _empty();
+  Widget _summary(BuildContext context) {
+    if (draft.summary.isEmpty) return _empty(context);
     return Text(
-      draft.summary!,
-      style: const TextStyle(fontSize: 14, height: 1.4),
+      draft.summary,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.4),
     );
   }
 
-  Widget _skills() {
-    if (draft.skills.isEmpty) return _empty();
+  Widget _skills(BuildContext context) {
+    if (draft.skills.isEmpty) return _empty(context);
+    final theme = Theme.of(context);
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -127,18 +124,19 @@ class ResumePreviewScreen extends StatelessWidget {
             (s) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade400),
+                border: Border.all(color: theme.colorScheme.outline),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(s, style: const TextStyle(fontSize: 13)),
+              child: Text(s, style: theme.textTheme.bodySmall),
             ),
           )
           .toList(),
     );
   }
 
-  Widget _experience() {
-    if (draft.experience.isEmpty) return _empty();
+  Widget _experience(BuildContext context) {
+    if (draft.experience.isEmpty) return _empty(context);
+    final theme = Theme.of(context);
 
     return Column(
       children: draft.experience.map((exp) {
@@ -152,16 +150,10 @@ class ResumePreviewScreen extends StatelessWidget {
                   Expanded(
                     child: Text(
                       exp['role'] ?? '',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ),
-                  Text(
-                    exp['duration'] ?? '',
-                    style: const TextStyle(fontSize: 13),
-                  ),
+                  Text(exp['duration'] ?? '', style: theme.textTheme.bodySmall),
                 ],
               ),
               if ((exp['company'] ?? '').isNotEmpty)
@@ -169,10 +161,7 @@ class ResumePreviewScreen extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 2),
                   child: Text(
                     exp['company'],
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
               if ((exp['description'] ?? '').isNotEmpty)
@@ -180,7 +169,7 @@ class ResumePreviewScreen extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     exp['description'],
-                    style: const TextStyle(fontSize: 14, height: 1.4),
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
                   ),
                 ),
             ],
@@ -190,12 +179,10 @@ class ResumePreviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _projects() {
-    final projects = draft.projects.entries
-        .where((e) => e.value.included)
-        .toList();
-
-    if (projects.isEmpty) return _empty();
+  Widget _projects(BuildContext context) {
+    final projects = draft.projects.entries.where((e) => e.value.included).toList();
+    if (projects.isEmpty) return _empty(context);
+    final theme = Theme.of(context);
 
     return Column(
       children: projects.map((entry) {
@@ -206,10 +193,7 @@ class ResumePreviewScreen extends StatelessWidget {
             children: [
               Text(
                 entry.key,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               ...entry.value.bulletPoints.map(
@@ -218,11 +202,11 @@ class ResumePreviewScreen extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('• ', style: TextStyle(fontSize: 14)),
+                      const Text('- ', style: TextStyle(fontSize: 14)),
                       Expanded(
                         child: Text(
                           point,
-                          style: const TextStyle(fontSize: 14, height: 1.4),
+                          style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
                         ),
                       ),
                     ],
@@ -236,8 +220,9 @@ class ResumePreviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _education() {
-    if (draft.education.isEmpty) return _empty();
+  Widget _education(BuildContext context) {
+    if (draft.education.isEmpty) return _empty(context);
+    final theme = Theme.of(context);
 
     return Column(
       children: draft.education.map((edu) {
@@ -252,24 +237,15 @@ class ResumePreviewScreen extends StatelessWidget {
                   children: [
                     Text(
                       '${edu['degree'] ?? ''}',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    Text(
-                      edu['institution'] ?? '',
-                      style: const TextStyle(fontSize: 14),
-                    ),
+                    Text(edu['institution'] ?? '', style: theme.textTheme.bodyMedium),
                     if ((edu['Percentage'] ?? '').toString().isNotEmpty)
-                      Text(
-                        'Percentage: ${edu['Percentage']}',
-                        style: const TextStyle(fontSize: 13),
-                      ),
+                      Text('Percentage: ${edu['Percentage']}', style: theme.textTheme.bodySmall),
                   ],
                 ),
               ),
-              Text(edu['year'] ?? '', style: const TextStyle(fontSize: 13)),
+              Text(edu['year'] ?? '', style: theme.textTheme.bodySmall),
             ],
           ),
         );
@@ -277,8 +253,9 @@ class ResumePreviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _achievements() {
-    if (draft.achievements.isEmpty) return _empty();
+  Widget _achievements(BuildContext context) {
+    if (draft.achievements.isEmpty) return _empty(context);
+    final theme = Theme.of(context);
 
     return Column(
       children: draft.achievements
@@ -288,12 +265,9 @@ class ResumePreviewScreen extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('• ', style: TextStyle(fontSize: 14)),
+                  const Text('- ', style: TextStyle(fontSize: 14)),
                   Expanded(
-                    child: Text(
-                      a,
-                      style: const TextStyle(fontSize: 14, height: 1.4),
-                    ),
+                    child: Text(a, style: theme.textTheme.bodyMedium?.copyWith(height: 1.4)),
                   ),
                 ],
               ),
@@ -303,9 +277,8 @@ class ResumePreviewScreen extends StatelessWidget {
     );
   }
 
-  // ================= HELPERS =================
-
-  Widget _section(String title, Widget content) {
+  Widget _section(BuildContext context, String title, Widget content) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 28),
       child: Column(
@@ -313,8 +286,7 @@ class ResumePreviewScreen extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 15,
+            style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
             ),
@@ -328,7 +300,10 @@ class ResumePreviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _empty() {
-    return Text('—', style: TextStyle(color: Colors.grey.shade500));
+  Widget _empty(BuildContext context) {
+    return Text(
+      '-',
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+    );
   }
 }

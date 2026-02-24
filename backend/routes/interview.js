@@ -328,7 +328,7 @@ router.get('/history', requireAuth, async (req, res) => {
     userId: req.user.userId,
     status: 'completed',
   })
-    .select('difficulty completedAt finalResult repos')
+    .select('difficulty startedAt completedAt finalResult repos')
     .sort({ completedAt: -1 });
 
   res.json({ success: true, interviews });

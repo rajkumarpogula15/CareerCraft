@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+
 import 'repo_skeleton.dart';
 
 class SectionSkeleton extends StatelessWidget {
@@ -11,7 +12,13 @@ class SectionSkeleton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
-        children: List.generate(count, (_) => const RepoSkeleton()),
+        children: List.generate(
+          count,
+          (_) => const Padding(
+            padding: EdgeInsets.only(bottom: 10),
+            child: RepoSkeleton(),
+          ),
+        ),
       ),
     );
   }

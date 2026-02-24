@@ -1,24 +1,20 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../state/app_state.dart';
-import '../services/activity_service.dart';
-import '../widgets/home_header.dart';
-import '../widgets/workspace_section.dart';
-import '../widgets/continue_session_card.dart';
-import '../widgets/smart_suggestions_section.dart';
-import '../widgets/home_footer.dart';
-import '../utils/iterable_ext.dart';
 import '../config/app_config.dart';
-import '../widgets/readme_preview_sheet.dart';
+import '../services/activity_service.dart';
+import '../state/app_state.dart';
+import '../utils/iterable_ext.dart';
+import 'continue_session_card.dart';
+import 'home_footer.dart';
+import 'home_header.dart';
+import 'loading/section_skeleton.dart';
+import 'readme_preview_sheet.dart';
+import 'smart_suggestions_section.dart';
+import 'workspace_section.dart';
 
-import '../widgets/loading/repo_skeleton.dart';
-import '../widgets/loading/section_skeleton.dart';
-
-/// ---------------------------------------------------------------------------
-/// Repo model
-/// ---------------------------------------------------------------------------
 class Repo {
   final int id;
   final String name;
@@ -45,13 +41,9 @@ class Repo {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Repo service
-/// ---------------------------------------------------------------------------
 class RepoService {
   static Future<List<Repo>> fetchUserRepos() async {
     final token = AppState.jwt;
-
     if (token == null) throw Exception('JWT missing');
 
     final res = await http.get(
@@ -67,43 +59,50 @@ class RepoService {
     }
 
     final List data = jsonDecode(res.body);
-
     return data.map((e) => Repo.fromJson(e)).toList();
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Smart suggestion engine
-/// ---------------------------------------------------------------------------
 class SmartSuggestionService {
-  static List<String> generate(List<Repo> repos) {
-    final now = DateTime.now();
-    final List<String> suggestions = [];
+  static List<SmartSuggestion> generate(List<Repo> repos) {
+    if (repos.isEmpty) return const [];
 
-    for (final repo in repos) {
-      if (suggestions.length >= 4) break;
+    final sorted = [...repos]
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    final withoutReadme = sorted.where((r) => !r.hasReadme).toList();
+    final primary = sorted.first;
+    final secondary = sorted.length > 1 ? sorted[1] : sorted.first;
+    final tertiary = sorted.length > 2 ? sorted[2] : sorted.first;
 
-      final inactivityDays = now.difference(repo.updatedAt).inDays;
-
-      if (!repo.hasReadme) {
-        suggestions.add('"${repo.name}" has no README — generate one?');
-        continue;
-      }
-
-      if (inactivityDays > 30) {
-        suggestions.add(
-          '"${repo.name}" inactive for $inactivityDays days — review it with RepoBot?',
-        );
-      }
-    }
-
-    return suggestions;
+    return [
+      SmartSuggestion(
+        label:
+            'Generate a professional README for ${withoutReadme.isNotEmpty ? withoutReadme.first.name : primary.name}.',
+        repoName: withoutReadme.isNotEmpty
+            ? withoutReadme.first.name
+            : primary.name,
+        action: SuggestionAction.readmeGeneration,
+      ),
+      SmartSuggestion(
+        label:
+            'Ask ${primary.name} assistant for repository-specific guidance.',
+        repoName: primary.name,
+        action: SuggestionAction.repoChat,
+      ),
+      SmartSuggestion(
+        label: 'Create a social post showcasing ${secondary.name}.',
+        repoName: secondary.name,
+        action: SuggestionAction.socialPost,
+      ),
+      SmartSuggestion(
+        label: 'Generate ATS-ready resume points from ${tertiary.name}.',
+        repoName: tertiary.name,
+        action: SuggestionAction.resumePoints,
+      ),
+    ];
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// LoggedInView
-/// ---------------------------------------------------------------------------
 class LoggedInView extends StatefulWidget {
   const LoggedInView({super.key});
 
@@ -113,16 +112,10 @@ class LoggedInView extends StatefulWidget {
 
 class _LoggedInViewState extends State<LoggedInView>
     with SingleTickerProviderStateMixin {
-  /// 🔧 TEST MODE: Change to false in production
-  static const bool _debugDelay = true;
-
   List<RecentActivity> _activities = [];
-  List<String> _rawSmartSuggestions = [];
-
+  List<SmartSuggestion> _smartSuggestions = [];
   bool _loadingActivities = true;
   bool _loadingSuggestions = true;
-
-  String? _pendingReadmeRepo;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -130,17 +123,14 @@ class _LoggedInViewState extends State<LoggedInView>
   @override
   void initState() {
     super.initState();
-
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-
     _fadeAnimation = CurvedAnimation(
       parent: _fadeController,
       curve: Curves.easeIn,
     );
-
     _loadActivities();
     _loadSmartSuggestions();
   }
@@ -151,79 +141,34 @@ class _LoggedInViewState extends State<LoggedInView>
     super.dispose();
   }
 
-  /// ---------------- Load Activities ----------------
   Future<void> _loadActivities() async {
     try {
-      // 🔴 Artificial delay for testing
-      if (_debugDelay) {
-        await Future.delayed(const Duration(seconds: 3));
-      }
-
       final data = await ActivityService.fetchRecent();
-
       if (!mounted) return;
-
       setState(() {
         _activities = data;
         _loadingActivities = false;
       });
-
       _fadeController.forward();
     } catch (_) {
-      if (mounted) {
-        setState(() => _loadingActivities = false);
-      }
+      if (mounted) setState(() => _loadingActivities = false);
     }
   }
 
-  /// ---------------- Load Suggestions ----------------
   Future<void> _loadSmartSuggestions() async {
     try {
-      // 🔴 Artificial delay for testing
-      if (_debugDelay) {
-        await Future.delayed(const Duration(seconds: 3));
-      }
-
       final repos = await RepoService.fetchUserRepos();
-
       final suggestions = SmartSuggestionService.generate(repos);
-
       if (!mounted) return;
-
       setState(() {
-        _rawSmartSuggestions = suggestions;
+        _smartSuggestions = suggestions;
         _loadingSuggestions = false;
       });
     } catch (_) {
-      if (mounted) {
-        setState(() => _loadingSuggestions = false);
-      }
+      if (mounted) setState(() => _loadingSuggestions = false);
     }
   }
 
-  /// Convert backend text → UI model
-  List<SmartSuggestion> get _smartSuggestionsUI {
-    return _rawSmartSuggestions.map((text) {
-      final match = RegExp(r'"([^"]+)"').firstMatch(text);
-      final repoName = match?.group(1);
-
-      final isReadme = text.toLowerCase().contains('readme');
-
-      if (isReadme) {
-        _pendingReadmeRepo = repoName;
-      }
-
-      return SmartSuggestion(
-        label: text,
-        repoName: repoName,
-        action: isReadme
-            ? SuggestionAction.readmeGeneration
-            : SuggestionAction.repoChat,
-      );
-    }).toList();
-  }
-
-  /// README launcher
   void _showReadmeGenerator(String repoName, String owner) {
     showModalBottomSheet(
       context: context,
@@ -243,60 +188,48 @@ class _LoggedInViewState extends State<LoggedInView>
   @override
   Widget build(BuildContext context) {
     final user = AppState.user;
-
     if (user == null) {
-      return const Center(child: Text("Failed to load profile"));
+      return const Center(child: Text('Failed to load profile'));
     }
 
     final owner =
         user['username'] ?? user['login'] ?? user['name'] ?? 'unknown';
-
     final repoChat = _activities
         .where((a) => a.type == 'repo_chat')
         .firstOrNull();
-
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const HomeHeader(),
-          const WorkspaceSection(),
-
-          /// ---------------- Activities ----------------
-          if (_loadingActivities)
-            const SectionSkeleton(count: 2)
-          else
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: repoChat != null
-                  ? ContinueSessionCard(
-                      repoName: repoChat.repoName,
-                      owner: owner,
-                      lastQuestion: 'Continue from where we paused',
-                      type: 'RepoBot',
-                    )
-                  : const SizedBox(),
-            ),
-
-          /// ---------------- Suggestions ----------------
+          const SizedBox(height: 10),
           if (_loadingSuggestions)
             const SectionSkeleton(count: 3)
           else
             FadeTransition(
               opacity: _fadeAnimation,
-              child: _smartSuggestionsUI.isNotEmpty
-                  ? SmartSuggestionsSection(
-                      owner: owner,
-                      suggestions: _smartSuggestionsUI,
-                      onGenerateReadme: () {
-                        if (_pendingReadmeRepo == null) return;
-
-                        _showReadmeGenerator(_pendingReadmeRepo!, owner);
-                      },
-                    )
-                  : const SizedBox(),
+              child: SmartSuggestionsSection(
+                owner: owner,
+                suggestions: _smartSuggestions,
+                onGenerateReadme: (repoName) =>
+                    _showReadmeGenerator(repoName, owner),
+              ),
             ),
-
+          const SizedBox(height: 10),
+          if (_loadingActivities)
+            const SectionSkeleton(count: 2)
+          else if (repoChat != null)
+            FadeTransition(
+              opacity: _fadeAnimation,
+              child: ContinueSessionCard(
+                repoName: repoChat.repoName,
+                owner: owner,
+                lastQuestion: 'Continue from where we paused',
+                type: 'RepoBot',
+              ),
+            ),
+          const SizedBox(height: 8),
+          const WorkspaceSection(),
           const HomeFooter(),
         ],
       ),

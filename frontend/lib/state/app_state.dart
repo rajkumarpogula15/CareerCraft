@@ -4,6 +4,7 @@ class AppState {
   static bool isLoggedIn = false;
   static String? jwt;
   static Map<String, dynamic>? user;
+  static Map<String, dynamic>? dashboard;
 
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
@@ -33,6 +34,7 @@ class AppState {
   static Future<void> logout() async {
     jwt = null;
     user = null;
+    dashboard = null;
     isLoggedIn = false;
     await _storage.delete(key: 'jwt');
   }

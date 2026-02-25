@@ -1,14 +1,17 @@
 # =========================
-# OS Files
+# OS / System Files
 # =========================
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # =========================
-# Logs / Temp
+# Logs / Temp Files
 # =========================
 *.log
 *.tmp
+*.temp
+*.swp
 
 # =========================
 # Flutter / Dart
@@ -21,13 +24,16 @@ build/
 flutter_*.png
 .flutter-plugins
 .flutter-plugins-dependencies
+.metadata
 
 # =========================
-# IDEs
+# IDE / Editors
 # =========================
 .idea/
 .vscode/
 *.iml
+*.ipr
+*.iws
 
 # =========================
 # Android
@@ -83,11 +89,13 @@ linux/flutter/ephemeral/
 web/.last_build_id
 
 # =========================
-# Environment Files
+# Environment / Secrets
 # =========================
 .env
 .env.*
 *.env
+*.key
+*.pem
 
 # =========================
 # Node / Frontend
@@ -95,10 +103,37 @@ web/.last_build_id
 node_modules/
 dist/
 .next/
+out/
 
 # =========================
 # Python / Backend
 # =========================
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+
+# =========================
+# Database
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Coverage / Reports
+# =========================
+coverage/
+lcov.info
+
+# =========================
+# Misc
+# =========================
+*.bak
+*.old
+*.orig

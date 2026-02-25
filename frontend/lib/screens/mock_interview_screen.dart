@@ -6,6 +6,7 @@ import '../widgets/common/state_views.dart';
 import '../widgets/loading/app_skeleton.dart';
 import '../widgets/logoutView.dart';
 import 'interview_review_screen.dart';
+import 'interview_session_screen.dart';
 import 'interview_setup_screen.dart';
 
 class MockInterviewScreen extends StatefulWidget {
@@ -40,12 +41,8 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
   }
 
   String _formatDuration(Map<String, dynamic> interview) {
-    final started = DateTime.tryParse(
-      (interview['startedAt'] ?? '').toString(),
-    );
-    final completed = DateTime.tryParse(
-      (interview['completedAt'] ?? '').toString(),
-    );
+    final started = DateTime.tryParse((interview['startedAt'] ?? '').toString());
+    final completed = DateTime.tryParse((interview['completedAt'] ?? '').toString());
     if (started == null || completed == null || completed.isBefore(started)) {
       return '-';
     }
@@ -80,6 +77,48 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     }
   }
 
+  Future<void> _deleteInterview(String sessionId) async {
+    try {
+      await InterviewApi.deleteInterview(sessionId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Interview deleted')),
+      );
+      _loadInterviewHistory();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to delete interview')),
+      );
+    }
+  }
+
+  void _confirmDelete(String sessionId) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete interview'),
+        content: const Text('This interview history will be removed permanently.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteInterview(sessionId);
+            },
+            child: Text(
+              'Delete',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!AppState.isLoggedIn) {
@@ -103,13 +142,11 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
           children: [
             Text(
               'Mock Interviews',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Practice real interview questions generated from your GitHub projects.',
+              'Practice questions generated from your GitHub projects and track your progress.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 20),
@@ -128,14 +165,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
                 },
               ),
             ),
-            const SizedBox(height: 24),
-            Text(
-              'Previous Interviews',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
             Expanded(child: _buildHistory()),
           ],
         ),
@@ -145,7 +175,7 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
 
   Widget _buildHistory() {
     if (_loading) {
-      return const CardListSkeleton(itemCount: 5, itemHeight: 78);
+      return const CardListSkeleton(itemCount: 5, itemHeight: 92);
     }
 
     if (_error != null) {
@@ -160,43 +190,118 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       );
     }
 
-    return ListView.builder(
-      itemCount: _interviews.length,
-      itemBuilder: (context, index) {
-        final interview = Map<String, dynamic>.from(_interviews[index] as Map);
-        final score = interview['finalResult']?['overallScore'];
-        final difficulty = _capitalize(
-          (interview['difficulty'] ?? '-').toString(),
-        );
-        final date = _formatDate(interview['completedAt']);
-        final duration = _formatDuration(interview);
+    final inProgress = _interviews.where((e) => e['status'] != 'completed').toList();
+    final completed = _interviews.where((e) => e['status'] == 'completed').toList();
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            leading: const Icon(Icons.history),
-            title: Text(
-              '$difficulty interview',
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(
-              'Score: ${score ?? '-'}  |  Date: $date  |  Duration: $duration',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      InterviewReviewScreen(sessionId: interview['_id']),
-                ),
-              );
-            },
+    return ListView(
+      children: [
+        if (inProgress.isNotEmpty) ...[
+          Text(
+            'Continue Your Interviews',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
-        );
-      },
+          const SizedBox(height: 10),
+          ...inProgress.map((raw) {
+            final interview = Map<String, dynamic>.from(raw as Map);
+            final difficulty = _capitalize((interview['difficulty'] ?? '-').toString());
+            final progress = interview['progressText']?.toString() ?? '-';
+            final sessionId = interview['_id'].toString();
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: ListTile(
+                leading: const Icon(Icons.pending_actions_outlined),
+                title: Text('$difficulty interview'),
+                subtitle: Text('Progress: $progress'),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _confirmDelete(sessionId);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => InterviewSessionScreen(
+                        repoIds: const [],
+                        difficulty: interview['difficulty']?.toString() ?? 'medium',
+                        existingSessionId: sessionId,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+        ],
+        Text(
+          'Previous Interviews',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        if (completed.isEmpty)
+          const AppEmptyState(
+            title: 'No completed interviews',
+            subtitle: 'Complete an interview to see your final analysis.',
+            icon: Icons.analytics_outlined,
+          )
+        else
+          ...completed.map((raw) {
+            final interview = Map<String, dynamic>.from(raw as Map);
+            final score = interview['finalResult']?['overallScore'];
+            final difficulty = _capitalize((interview['difficulty'] ?? '-').toString());
+            final date = _formatDate(interview['completedAt']);
+            final duration = _formatDuration(interview);
+            final sessionId = interview['_id'].toString();
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                leading: const Icon(Icons.history),
+                title: Text(
+                  '$difficulty interview',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  'Score: ${score ?? '-'}  |  Date: $date  |  Duration: $duration',
+                ),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'review') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => InterviewReviewScreen(sessionId: sessionId),
+                        ),
+                      );
+                    }
+                    if (value == 'delete') {
+                      _confirmDelete(sessionId);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'review', child: Text('View Review')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => InterviewReviewScreen(sessionId: sessionId),
+                    ),
+                  );
+                },
+              ),
+            );
+          }),
+      ],
     );
   }
 }

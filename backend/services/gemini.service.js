@@ -1,46 +1,90 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
-/**
- * Utility: Clean Gemini output to pure JSON
- */
+const PURPOSE_KEY_ENV = {
+  question_generation: 'GEMINI_API_KEY_QUESTION',
+  answer_evaluation: 'GEMINI_API_KEY_EVALUATION',
+  final_analysis: 'GEMINI_API_KEY_ANALYSIS',
+  repo_summary: 'GEMINI_API_KEY_ANALYSIS',
+};
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function keysForPurpose(purpose = 'repo_summary') {
+  const primary = process.env[PURPOSE_KEY_ENV[purpose]];
+  const fallback = process.env.GEMINI_API_KEY;
+
+  if (purpose === 'question_generation') {
+    return unique([
+      primary,
+      process.env.GEMINI_API_KEY_EVALUATION,
+      process.env.GEMINI_API_KEY_ANALYSIS,
+      fallback,
+    ]);
+  }
+
+  if (purpose === 'answer_evaluation') {
+    return unique([
+      primary,
+      process.env.GEMINI_API_KEY_QUESTION,
+      process.env.GEMINI_API_KEY_ANALYSIS,
+      fallback,
+    ]);
+  }
+
+  return unique([
+    primary,
+    process.env.GEMINI_API_KEY_QUESTION,
+    process.env.GEMINI_API_KEY_EVALUATION,
+    fallback,
+  ]);
+}
+
 function extractJson(raw) {
   if (!raw) throw new Error('Empty Gemini output');
 
-  // Remove ```json and ``` fences
-  const cleaned = raw
+  return raw
     .replace(/```json/gi, '')
     .replace(/```/g, '')
     .trim();
-
-  return cleaned;
 }
 
-/**
- * Low-level Gemini call (SAFE + SUPPORTED)
- */
-async function runGemini(prompt) {
+async function runGemini(prompt, { purpose = 'repo_summary' } = {}) {
   if (!prompt) throw new Error('Gemini prompt is required');
 
-  const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL, // e.g. "gemini-1.5-flash"
-  });
-
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const text = response.text();
-
-  if (!text) {
-    throw new Error('Empty Gemini response');
+  const keys = keysForPurpose(purpose);
+  if (keys.length === 0) {
+    throw new Error('No Gemini API keys configured');
   }
 
-  return text.trim();
+  let lastError;
+
+  for (const key of keys) {
+    try {
+      const genAI = new GoogleGenerativeAI(key);
+      const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text()?.trim();
+
+      if (!text) throw new Error('Empty Gemini response');
+      return text;
+    } catch (err) {
+      lastError = err;
+      const message = err?.message || String(err);
+      console.error(`Gemini call failed for purpose=${purpose}: ${message}`);
+    }
+  }
+
+  throw new Error(
+    `Gemini request failed after trying ${keys.length} key(s): ${lastError?.message || 'unknown error'}`
+  );
 }
 
-/**
- * Repo summarization (uses runGemini)
- */
 async function summarizeRepo({ repoName, description, readme, structure }) {
   const prompt = `
 You are an expert software interviewer.
@@ -67,19 +111,18 @@ Return ONLY valid JSON in this format:
 }
 `;
 
-  const raw = await runGemini(prompt);
+  const raw = await runGemini(prompt, { purpose: 'repo_summary' });
 
   let parsed;
   try {
     const cleaned = extractJson(raw);
     parsed = JSON.parse(cleaned);
   } catch (err) {
-    console.error('🔥 Gemini raw output:\n', raw);
-    console.error('🔥 JSON parse error:', err.message);
+    console.error('Gemini raw output:\n', raw);
+    console.error('Gemini JSON parse error:', err.message);
     throw new Error('Failed to parse Gemini summary JSON');
   }
 
-  // Optional safety validation
   const requiredKeys = [
     'techStack',
     'purpose',

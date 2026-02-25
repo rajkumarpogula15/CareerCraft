@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -8,7 +9,7 @@ import '../models/favourite_repo.dart';
 import '../services/repository_service.dart';
 import '../state/app_state.dart';
 import '../widgets/common/state_views.dart';
-import '../widgets/loading/repo_skeleton.dart';
+import '../widgets/loading/app_skeleton.dart';
 import '../widgets/logoutView.dart';
 import '../widgets/repo_card.dart';
 
@@ -71,11 +72,17 @@ class _ReposScreenState extends State<ReposScreen> {
 
   void _startStaggeredAnimation() {
     for (int i = 0; i < visibleItems.length; i++) {
-      Future.delayed(Duration(milliseconds: 90 * i), () {
+      Future.delayed(Duration(milliseconds: 70 * i), () {
         if (!mounted) return;
         setState(() => visibleItems[i] = true);
       });
     }
+  }
+
+  int _columnsForWidth(double width) {
+    if (width >= 1240) return 3;
+    if (width >= 760) return 2;
+    return 1;
   }
 
   @override
@@ -85,16 +92,7 @@ class _ReposScreenState extends State<ReposScreen> {
     }
 
     if (loading) {
-      return Scaffold(
-        body: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: 6,
-          itemBuilder: (_, __) => const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: RepoSkeleton(),
-          ),
-        ),
-      );
+      return const Scaffold(body: ReposScreenSkeleton());
     }
 
     if (error != null) {
@@ -112,45 +110,72 @@ class _ReposScreenState extends State<ReposScreen> {
     }
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            elevation: 0,
-            title: Text('Repositories', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-          ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final repo = repos[index];
-              final fullName = repo['full_name'] ?? '';
-              final owner = fullName.contains('/') ? fullName.split('/')[0] : 'unknown';
-              final int repoId = repo['id'];
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = _columnsForWidth(constraints.maxWidth);
+          final horizontalPadding = constraints.maxWidth >= 760 ? 20.0 : 16.0;
+          final spacing = 12.0;
+          final available =
+              constraints.maxWidth -
+              (horizontalPadding * 2) -
+              (spacing * (columns - 1));
+          final cardWidth = math.max(280.0, available / columns);
 
-              return AnimatedOpacity(
-                duration: const Duration(milliseconds: 320),
-                opacity: visibleItems[index] ? 1 : 0,
-                child: AnimatedSlide(
-                  duration: const Duration(milliseconds: 320),
-                  curve: Curves.easeOut,
-                  offset: visibleItems[index] ? Offset.zero : const Offset(0, 0.08),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: RepoCard(
-                      repoId: repoId,
-                      name: repo['name'] ?? 'Unnamed Repo',
-                      description: repo['description'] ?? '',
-                      isPrivate: repo['private'] ?? false,
-                      owner: owner,
-                      htmlUrl: repo['html_url'],
-                      language: repo['language'],
-                      isFavourite: favouriteRepoIds.contains(repoId),
-                    ),
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                pinned: true,
+                elevation: 0,
+                title: Text(
+                  'Repositories',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 18),
+                sliver: SliverToBoxAdapter(
+                  child: Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: List.generate(repos.length, (index) {
+                      final repo = repos[index];
+                      final fullName = repo['full_name'] ?? '';
+                      final owner = fullName.contains('/')
+                          ? fullName.split('/')[0]
+                          : 'unknown';
+                      final int repoId = repo['id'];
+
+                      return AnimatedOpacity(
+                        duration: const Duration(milliseconds: 320),
+                        opacity: visibleItems[index] ? 1 : 0,
+                        child: AnimatedSlide(
+                          duration: const Duration(milliseconds: 320),
+                          curve: Curves.easeOut,
+                          offset: visibleItems[index] ? Offset.zero : const Offset(0, 0.08),
+                          child: SizedBox(
+                            width: cardWidth,
+                            child: RepoCard(
+                              repoId: repoId,
+                              name: repo['name'] ?? 'Unnamed Repo',
+                              description: repo['description'] ?? '',
+                              isPrivate: repo['private'] ?? false,
+                              owner: owner,
+                              htmlUrl: repo['html_url'],
+                              language: repo['language'],
+                              isFavourite: favouriteRepoIds.contains(repoId),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
                   ),
                 ),
-              );
-            }, childCount: repos.length),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

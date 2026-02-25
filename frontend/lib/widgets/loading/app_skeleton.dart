@@ -9,10 +9,11 @@ class AppSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Shimmer.fromColors(
-      baseColor: scheme.surfaceContainerHighest,
-      highlightColor: scheme.surfaceContainerLow,
+      baseColor: isDark ? scheme.surfaceContainerHigh : scheme.surfaceContainerHighest,
+      highlightColor: isDark ? scheme.surfaceContainerLow : scheme.surface,
       period: const Duration(milliseconds: 1200),
       child: child,
     );
@@ -68,6 +69,87 @@ class CardListSkeleton extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class ReposScreenSkeleton extends StatelessWidget {
+  const ReposScreenSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = width >= 1100 ? 3 : width >= 760 ? 2 : 1;
+        final horizontal = width >= 760 ? 20.0 : 16.0;
+
+        return AppSkeleton(
+          child: GridView.builder(
+            padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              mainAxisExtent: 120,
+            ),
+            itemCount: columns == 1 ? 6 : 9,
+            itemBuilder: (_, __) => Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class HomeLoggedInSkeleton extends StatelessWidget {
+  const HomeLoggedInSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          AppSkeleton(
+            child: SkeletonBox(
+              width: double.infinity,
+              height: 92,
+              borderRadius: BorderRadius.all(Radius.circular(16)),
+            ),
+          ),
+          SizedBox(height: 12),
+          AppSkeleton(
+            child: SkeletonBox(
+              width: double.infinity,
+              height: 196,
+              borderRadius: BorderRadius.all(Radius.circular(16)),
+            ),
+          ),
+          SizedBox(height: 12),
+          AppSkeleton(
+            child: SkeletonBox(
+              width: double.infinity,
+              height: 88,
+              borderRadius: BorderRadius.all(Radius.circular(16)),
+            ),
+          ),
+          SizedBox(height: 12),
+          AppSkeleton(
+            child: SkeletonBox(
+              width: double.infinity,
+              height: 176,
+              borderRadius: BorderRadius.all(Radius.circular(16)),
+            ),
+          ),
+        ],
       ),
     );
   }

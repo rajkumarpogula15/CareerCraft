@@ -65,6 +65,11 @@ class _InterviewReviewScreenState extends State<InterviewReviewScreen> {
     }
   }
 
+  String _capitalize(String value) {
+    if (value.isEmpty) return value;
+    return '${value[0].toUpperCase()}${value.substring(1).toLowerCase()}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -88,23 +93,47 @@ class _InterviewReviewScreenState extends State<InterviewReviewScreen> {
 
     final questions = (_interview!['questions'] as List<dynamic>? ?? const []);
     final answers = (_interview!['answers'] as List<dynamic>? ?? const []);
-    final evaluations =
-        (_interview!['evaluations'] as List<dynamic>? ?? const []);
-    final finalResult = _interview!['finalResult'];
+    final evaluations = (_interview!['evaluations'] as List<dynamic>? ?? const []);
+    final finalResult = _interview!['finalResult'] as Map<String, dynamic>?;
+    final status = (_interview!['status'] ?? 'created').toString();
+    final difficulty = _capitalize((_interview!['difficulty'] ?? '-').toString());
+    final score = finalResult?['overallScore']?.toString() ?? '-';
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Card(
-          child: ListTile(
-            title: const Text('Final Score'),
-            trailing: Text(
-              finalResult?['overallScore']?.toString() ?? '-',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$difficulty interview',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    Chip(label: Text('Status: $status')),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text('Final score: $score'),
+                Text('Questions answered: ${answers.length}/${questions.length}'),
+              ],
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        if (finalResult != null) ...[
+          const SizedBox(height: 12),
+          _analysisCard(
+            title: 'Final Analysis',
+            items: List<String>.from(finalResult['improvements'] ?? const []),
+          ),
+        ],
+        const SizedBox(height: 16),
         ...List.generate(questions.length, (i) {
           final q = questions[i];
 
@@ -147,6 +176,28 @@ class _InterviewReviewScreenState extends State<InterviewReviewScreen> {
           );
         }),
       ],
+    );
+  }
+
+  Widget _analysisCard({required String title, required List<String> items}) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            if (items.isEmpty)
+              const Text('No final analysis available')
+            else
+              ...items.map((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text('- $item'),
+                  )),
+          ],
+        ),
+      ),
     );
   }
 }

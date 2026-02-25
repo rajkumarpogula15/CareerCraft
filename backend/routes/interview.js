@@ -22,10 +22,8 @@ const {
 } = require('../services/gemini.service');
 
 const router = express.Router();
+const TOTAL_QUESTIONS = 10;
 
-/* ───────────────────────────────────────────── */
-/* ✅ Gemini JSON Safety Helper                  */
-/* ───────────────────────────────────────────── */
 function safeParseGeminiJSON(raw, context = 'Gemini') {
   try {
     if (!raw || typeof raw !== 'string') {
@@ -39,15 +37,42 @@ function safeParseGeminiJSON(raw, context = 'Gemini') {
 
     return JSON.parse(cleaned);
   } catch (err) {
-    console.error(`❌ ${context} JSON parse failed`);
-    console.error('RAW RESPONSE:\n', raw);
+    console.error(`${context} JSON parse failed`);
+    console.error('Raw response:\n', raw);
     throw new Error(`${context} returned invalid JSON`);
   }
 }
 
-/* ───────────────────────────────────────────── */
-/* POST /interviews/summarize-repos              */
-/* ───────────────────────────────────────────── */
+async function getSessionForUser(sessionId, userId) {
+  return InterviewSession.findOne({
+    _id: sessionId,
+    userId,
+  });
+}
+
+async function generateAndAppendFirstQuestion(session, repoSummaries) {
+  const prompt = firstQuestionPrompt({
+    repoSummaries,
+    difficulty: session.difficulty,
+  });
+
+  const parsed = safeParseGeminiJSON(
+    await runGemini(prompt, { purpose: 'question_generation' }),
+    'First Question'
+  );
+
+  session.questions.push({
+    index: 0,
+    text: parsed.question,
+    repoName: parsed.repoName,
+    topic: parsed.topic,
+  });
+
+  session.status = 'in_progress';
+  session.currentQuestionIndex = 0;
+  await session.save();
+}
+
 router.post('/summarize-repos', requireAuth, async (req, res) => {
   const { repos } = req.body;
 
@@ -130,9 +155,6 @@ router.post('/summarize-repos', requireAuth, async (req, res) => {
   }
 });
 
-/* ───────────────────────────────────────────── */
-/* POST /interviews/start                        */
-/* ───────────────────────────────────────────── */
 router.post('/start', requireAuth, async (req, res) => {
   const { repoIds, difficulty } = req.body;
 
@@ -174,70 +196,114 @@ router.post('/start', requireAuth, async (req, res) => {
   }
 });
 
-/* ───────────────────────────────────────────── */
-/* POST /:sessionId/first-question               */
-/* ───────────────────────────────────────────── */
 router.post('/:sessionId/first-question', requireAuth, async (req, res) => {
-  const session = await InterviewSession.findById(req.params.sessionId);
+  const session = await getSessionForUser(req.params.sessionId, req.user.userId);
   if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  if (session.questions.length > 0) {
+    return res.json({
+      questionIndex: session.currentQuestionIndex,
+      question: session.questions[session.currentQuestionIndex]?.text || '',
+    });
+  }
 
   const repoSummaries = await RepoSummary.find({
     userId: session.userId,
     repoId: { $in: session.repos.map(r => r.repoId) },
   });
 
-  const prompt = firstQuestionPrompt({
-    repoSummaries,
-    difficulty: session.difficulty,
-  });
+  await generateAndAppendFirstQuestion(session, repoSummaries);
 
-  const parsed = safeParseGeminiJSON(
-    await runGemini(prompt),
-    'First Question'
-  );
-
-  session.questions.push({
-    index: 0,
-    text: parsed.question,
-    repoName: parsed.repoName,
-    topic: parsed.topic,
-  });
-
-  session.status = 'in_progress';
-  session.currentQuestionIndex = 0;
-  await session.save();
-
-  res.json({ questionIndex: 0, question: parsed.question });
+  res.json({ questionIndex: 0, question: session.questions[0].text });
 });
 
-/* ───────────────────────────────────────────── */
-/* POST /:sessionId/answer                       */
-/* ───────────────────────────────────────────── */
-router.post('/:sessionId/answer', requireAuth, async (req, res) => {
-  const session = await InterviewSession.findById(req.params.sessionId);
+router.get('/:sessionId/resume', requireAuth, async (req, res) => {
+  const session = await getSessionForUser(req.params.sessionId, req.user.userId);
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
+  if (session.status === 'completed') {
+    return res.json({
+      done: true,
+      sessionId: session._id,
+      status: session.status,
+      progress: {
+        answered: session.answers.length,
+        total: TOTAL_QUESTIONS,
+      },
+    });
+  }
+
+  const repoSummaries = await RepoSummary.find({
+    userId: session.userId,
+    repoId: { $in: session.repos.map(r => r.repoId) },
+  });
+
+  if (session.questions.length === 0) {
+    await generateAndAppendFirstQuestion(session, repoSummaries);
+  }
+
   const index = session.currentQuestionIndex;
-  session.answers.push({ index, text: req.body.answer });
+  const currentQuestion = session.questions[index];
+
+  return res.json({
+    done: false,
+    sessionId: session._id,
+    status: session.status,
+    difficulty: session.difficulty,
+    questionIndex: index,
+    question: currentQuestion?.text || '',
+    progress: {
+      answered: session.answers.length,
+      total: TOTAL_QUESTIONS,
+    },
+  });
+});
+
+router.post('/:sessionId/answer', requireAuth, async (req, res) => {
+  const session = await getSessionForUser(req.params.sessionId, req.user.userId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  if (session.status === 'completed') {
+    return res.status(400).json({ error: 'Interview already completed' });
+  }
+
+  const answerText = String(req.body.answer || '').trim();
+  if (!answerText) {
+    return res.status(400).json({ error: 'Answer is required' });
+  }
+
+  const index = session.currentQuestionIndex;
+  const question = session.questions[index];
+  if (!question?.text) {
+    return res.status(400).json({ error: 'Current question missing' });
+  }
+
+  session.answers.push({ index, text: answerText });
 
   const evalPrompt = evaluateAnswerPrompt({
-    question: session.questions[index].text,
-    answer: req.body.answer,
+    question: question.text,
+    answer: answerText,
     difficulty: session.difficulty,
   });
 
   const evalResult = safeParseGeminiJSON(
-    await runGemini(evalPrompt),
+    await runGemini(evalPrompt, { purpose: 'answer_evaluation' }),
     'Answer Evaluation'
   );
 
   session.evaluations.push({ index, ...evalResult });
 
-  if (index === 9) {
+  if (index >= TOTAL_QUESTIONS - 1) {
     session.status = 'completed';
     session.completedAt = new Date();
     await session.save();
-    return res.json({ done: true });
+    return res.json({
+      done: true,
+      progress: {
+        answered: session.answers.length,
+        total: TOTAL_QUESTIONS,
+      },
+    });
   }
 
   const repoSummaries = await RepoSummary.find({
@@ -254,7 +320,7 @@ router.post('/:sessionId/answer', requireAuth, async (req, res) => {
   });
 
   const nextQ = safeParseGeminiJSON(
-    await runGemini(nextPrompt),
+    await runGemini(nextPrompt, { purpose: 'question_generation' }),
     'Next Question'
   );
 
@@ -266,20 +332,22 @@ router.post('/:sessionId/answer', requireAuth, async (req, res) => {
     topic: nextQ.topic,
   });
 
+  session.status = 'in_progress';
   await session.save();
 
   res.json({
     questionIndex: session.currentQuestionIndex,
     question: nextQ.question,
+    progress: {
+      answered: session.answers.length,
+      total: TOTAL_QUESTIONS,
+    },
   });
 });
 
-/* ───────────────────────────────────────────── */
-/* POST /:sessionId/final-analysis               */
-/* ───────────────────────────────────────────── */
 router.post('/:sessionId/final-analysis', requireAuth, async (req, res) => {
   try {
-    const session = await InterviewSession.findById(req.params.sessionId);
+    const session = await getSessionForUser(req.params.sessionId, req.user.userId);
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
     if (session.status !== 'completed') {
@@ -306,7 +374,7 @@ router.post('/:sessionId/final-analysis', requireAuth, async (req, res) => {
     });
 
     const analysis = safeParseGeminiJSON(
-      await runGemini(prompt),
+      await runGemini(prompt, { purpose: 'final_analysis' }),
       'Final Analysis'
     );
 
@@ -320,28 +388,50 @@ router.post('/:sessionId/final-analysis', requireAuth, async (req, res) => {
   }
 });
 
-/* ───────────────────────────────────────────── */
-/* GET /interviews/history  (NEW)                */
-/* ───────────────────────────────────────────── */
 router.get('/history', requireAuth, async (req, res) => {
   const interviews = await InterviewSession.find({
     userId: req.user.userId,
-    status: 'completed',
   })
-    .select('difficulty startedAt completedAt finalResult repos')
-    .sort({ completedAt: -1 });
+    .select(
+      'difficulty status startedAt completedAt finalResult repos currentQuestionIndex questions answers evaluations createdAt updatedAt'
+    )
+    .sort({ updatedAt: -1 });
 
-  res.json({ success: true, interviews });
+  const normalized = interviews.map(interview => ({
+    _id: interview._id,
+    difficulty: interview.difficulty,
+    status: interview.status,
+    startedAt: interview.startedAt,
+    completedAt: interview.completedAt,
+    currentQuestionIndex: interview.currentQuestionIndex,
+    questionCount: interview.questions?.length || 0,
+    answerCount: interview.answers?.length || 0,
+    progressText: `${interview.answers?.length || 0}/${TOTAL_QUESTIONS}`,
+    finalResult: interview.finalResult || null,
+    repos: interview.repos || [],
+    hasFinalAnalysis: interview.finalResult?.overallScore !== undefined,
+    createdAt: interview.createdAt,
+    updatedAt: interview.updatedAt,
+  }));
+
+  res.json({ success: true, interviews: normalized });
 });
 
-/* ───────────────────────────────────────────── */
-/* GET /interviews/:sessionId  (NEW)             */
-/* ───────────────────────────────────────────── */
-router.get('/:sessionId', requireAuth, async (req, res) => {
-  const session = await InterviewSession.findOne({
+router.delete('/:sessionId', requireAuth, async (req, res) => {
+  const deleted = await InterviewSession.findOneAndDelete({
     _id: req.params.sessionId,
     userId: req.user.userId,
   });
+
+  if (!deleted) {
+    return res.status(404).json({ error: 'Interview not found' });
+  }
+
+  return res.json({ success: true });
+});
+
+router.get('/:sessionId', requireAuth, async (req, res) => {
+  const session = await getSessionForUser(req.params.sessionId, req.user.userId);
 
   if (!session) {
     return res.status(404).json({ error: 'Interview not found' });

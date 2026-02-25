@@ -120,9 +120,11 @@ router.get('/login', (req, res) => {
       });
     }
 
+    const redirectUri = `${req.protocol}://${req.get('host')}/auth/github/callback`;
     const githubUrl =
       'https://github.com/login/oauth/authorize' +
       `?client_id=${process.env.GITHUB_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       '&scope=read:user repo';
 
     console.log('✅ OAuth URL:', githubUrl);
@@ -157,6 +159,7 @@ router.get('/callback', async (req, res) => {
   }
 
   try {
+    const redirectUri = `${req.protocol}://${req.get('host')}/auth/github/callback`;
     /**
      * 🔑 EXCHANGE CODE FOR TOKEN
      */
@@ -168,6 +171,7 @@ router.get('/callback', async (req, res) => {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
+        redirect_uri: redirectUri,
       },
       {
         headers: { Accept: 'application/json' },
@@ -444,6 +448,7 @@ router.get('/dashboard', requireAuth, async (req, res) => {
       stats: {
         loginStreak: user.loginStreak || 0,
         totalActiveDays: user.loginDates?.length || 0,
+        activeDates: (user.loginDates || []).map(date => new Date(date).toISOString()),
         completedInterviews,
         notificationsEnabled: user.notificationEnabled !== false,
       },

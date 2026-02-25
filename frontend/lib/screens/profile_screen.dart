@@ -90,6 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final stats = (AppState.dashboard?['stats'] as Map<String, dynamic>?) ?? {};
     final languageDistribution =
         (AppState.dashboard?['languageDistribution'] as Map<String, dynamic>?) ?? {};
+    final activeDates = _parseActiveDates(stats['activeDates']);
 
     return RefreshIndicator(
       onRefresh: _loadProfile,
@@ -99,16 +100,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _profileHeader(user, stats),
           const SizedBox(height: 12),
-          _statTile('Public Repositories', user['public_repos'] ?? 0),
-          _statTile('Followers', user['followers'] ?? 0),
-          _statTile('Following', user['following'] ?? 0),
+          _resumeBuilderButton(),
+          const SizedBox(height: 12),
+          _statsRow(user),
+          const SizedBox(height: 12),
+          _activeDaysCalendar(
+            activeDates: activeDates,
+            fallbackCount: (stats['totalActiveDays'] ?? 0) as int,
+          ),
           const SizedBox(height: 12),
           SkillProgressCard(
             distribution: languageDistribution,
             title: 'Language Heatmap',
           ),
           const SizedBox(height: 12),
-          _actionsSection(user),
+          _actionsSection(),
         ],
       ),
     );
@@ -116,7 +122,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _profileHeader(Map user, Map<String, dynamic> stats) {
     final theme = Theme.of(context);
-    final streak = stats['loginStreak'] ?? 0;
+    final streak = (stats['loginStreak'] ?? 0) as int;
+    final activeDays = (stats['totalActiveDays'] ?? 0) as int;
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -126,12 +133,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             CircleAvatar(
               radius: 40,
-              backgroundImage: user['avatar'] != null
-                  ? NetworkImage(user['avatar'])
-                  : null,
-              child: user['avatar'] == null
-                  ? const Icon(Icons.person, size: 40)
-                  : null,
+              backgroundImage: user['avatar'] != null ? NetworkImage(user['avatar']) : null,
+              child: user['avatar'] == null ? const Icon(Icons.person, size: 40) : null,
             ),
             const SizedBox(height: 10),
             Text(
@@ -147,15 +150,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-            if (streak > 0) ...[
-              const SizedBox(height: 6),
-              Text(
-                '🔥 $streak-day login streak',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _badge(Icons.local_fire_department_outlined, '$streak-day streak'),
+                _badge(Icons.calendar_today_outlined, '$activeDays active days'),
+              ],
+            ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: () => _openGitHubProfile(user['username']),
@@ -168,34 +171,175 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _statTile(String label, int value) {
+  Widget _badge(IconData icon, String label) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resumeBuilderButton() {
+    return PrimaryButton(
+      label: 'Build Resume',
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ResumeBuilderScreen()),
+        );
+      },
+    );
+  }
+
+  Widget _statsRow(Map user) {
+    return Row(
+      children: [
+        Expanded(
+          child: _statCard(
+            label: 'Repositories',
+            value: user['public_repos'] ?? 0,
+            icon: Icons.folder_open_outlined,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _statCard(
+            label: 'Followers',
+            value: user['followers'] ?? 0,
+            icon: Icons.people_alt_outlined,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _statCard(
+            label: 'Following',
+            value: user['following'] ?? 0,
+            icon: Icons.group_work_outlined,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statCard({
+    required String label,
+    required dynamic value,
+    required IconData icon,
+  }) {
     final theme = Theme.of(context);
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        dense: true,
-        title: Text(label),
-        trailing: Text(
-          value.toString(),
-          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        child: Column(
+          children: [
+            Icon(icon, color: theme.colorScheme.primary),
+            const SizedBox(height: 8),
+            Text(
+              value.toString(),
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _actionsSection(Map user) {
+  Widget _activeDaysCalendar({
+    required Set<DateTime> activeDates,
+    required int fallbackCount,
+  }) {
+    final theme = Theme.of(context);
+    final today = DateTime.now();
+    final dayCells = List<DateTime>.generate(
+      35,
+      (index) => DateTime(today.year, today.month, today.day).subtract(
+        Duration(days: 34 - index),
+      ),
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Active Days Calendar',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: dayCells.map((day) {
+                final key = DateTime(day.year, day.month, day.day);
+                final isActive = activeDates.contains(key);
+                return Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              activeDates.isEmpty
+                  ? '$fallbackCount total active days'
+                  : '${activeDates.length} days marked in recent activity',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Set<DateTime> _parseActiveDates(dynamic raw) {
+    if (raw is! List) return <DateTime>{};
+    final dates = <DateTime>{};
+    for (final value in raw) {
+      final parsed = DateTime.tryParse(value.toString());
+      if (parsed == null) continue;
+      dates.add(DateTime(parsed.year, parsed.month, parsed.day));
+    }
+    return dates;
+  }
+
+  Widget _actionsSection() {
     return Column(
       children: [
-        PrimaryButton(
-          label: 'Build Resume',
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ResumeBuilderScreen()),
-            );
-          },
-        ),
-        const SizedBox(height: 10),
         OutlinedButton(
           onPressed: _confirmLogout,
           child: Text(

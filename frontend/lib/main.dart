@@ -36,7 +36,7 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
   int index = 0;
 
   late final List<Widget> screens = [
-    HomeScreen(onLogin: _onLogin),
+    HomeScreen(onLogin: _onLogin, onOpenProfile: _openProfileTab),
     const ReposScreen(),
     const MockInterviewScreen(),
     ProfileScreen(onLogout: _refresh, onLogin: _onLogin),
@@ -87,6 +87,10 @@ class _CareerCraftAppState extends State<CareerCraftApp> {
 
   void _onLogin() {
     AuthService.loginWithGitHub();
+  }
+
+  void _openProfileTab() {
+    setState(() => index = 3);
   }
 
   @override

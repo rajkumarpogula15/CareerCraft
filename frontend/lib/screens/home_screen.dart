@@ -13,8 +13,9 @@ import '../widgets/logged_out_view.dart';
 
 class HomeScreen extends StatefulWidget {
   final VoidCallback onLogin;
+  final VoidCallback? onOpenProfile;
 
-  const HomeScreen({super.key, required this.onLogin});
+  const HomeScreen({super.key, required this.onLogin, this.onOpenProfile});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -85,11 +86,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final content = AppState.isLoggedIn
+        ? (_loadingProfile
+              ? const HomeLoggedInSkeleton()
+              : LoggedInView(onOpenProfile: widget.onOpenProfile))
+        : LoggedOutView(onLogin: _loginWithGitHub);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 2, 12, 2),
-      child: AppState.isLoggedIn
-          ? (_loadingProfile ? const CardListSkeleton(itemCount: 4, itemHeight: 80) : const LoggedInView())
-          : LoggedOutView(onLogin: _loginWithGitHub),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 260),
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeIn,
+        child: KeyedSubtree(
+          key: ValueKey('${AppState.isLoggedIn}-${_loadingProfile.toString()}'),
+          child: content,
+        ),
+      ),
     );
   }
 }

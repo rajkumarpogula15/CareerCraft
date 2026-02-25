@@ -1,10 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-
-import '../config/app_config.dart';
 import '../services/activity_service.dart';
+import '../services/github_api.dart';
 import '../state/app_state.dart';
 import '../utils/iterable_ext.dart';
 import 'continue_session_card.dart';
@@ -38,28 +34,6 @@ class Repo {
       hasReadme: json['has_readme'] ?? false,
       updatedAt: DateTime.parse(json['updated_at']),
     );
-  }
-}
-
-class RepoService {
-  static Future<List<Repo>> fetchUserRepos() async {
-    final token = AppState.jwt;
-    if (token == null) throw Exception('JWT missing');
-
-    final res = await http.get(
-      Uri.parse('${AppConfig.backendBaseUrl}/auth/github/repos'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
-
-    if (res.statusCode != 200) {
-      throw Exception('Failed to load repos');
-    }
-
-    final List data = jsonDecode(res.body);
-    return data.map((e) => Repo.fromJson(e)).toList();
   }
 }
 
@@ -104,7 +78,9 @@ class SmartSuggestionService {
 }
 
 class LoggedInView extends StatefulWidget {
-  const LoggedInView({super.key});
+  final VoidCallback? onOpenProfile;
+
+  const LoggedInView({super.key, this.onOpenProfile});
 
   @override
   State<LoggedInView> createState() => _LoggedInViewState();
@@ -157,7 +133,10 @@ class _LoggedInViewState extends State<LoggedInView>
 
   Future<void> _loadSmartSuggestions() async {
     try {
-      final repos = await RepoService.fetchUserRepos();
+      final repoJson = await GithubApi.fetchRepos();
+      final repos = repoJson
+          .map<Repo>((e) => Repo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
       final suggestions = SmartSuggestionService.generate(repos);
       if (!mounted) return;
       setState(() {
@@ -201,7 +180,7 @@ class _LoggedInViewState extends State<LoggedInView>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const HomeHeader(),
+          HomeHeader(onTap: widget.onOpenProfile),
           const SizedBox(height: 10),
           if (_loadingSuggestions)
             const SectionSkeleton(count: 3)

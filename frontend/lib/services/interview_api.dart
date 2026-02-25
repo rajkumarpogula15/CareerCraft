@@ -95,6 +95,23 @@ class InterviewApi {
     return decoded;
   }
 
+  static Future<Map<String, dynamic>> resumeInterview(String sessionId) async {
+    final url = Uri.parse('$baseUrl/$sessionId/resume');
+
+    final res = await http.get(url, headers: _headers());
+
+    if (res.statusCode != 200) {
+      throw Exception('resumeInterview failed (${res.statusCode}): ${res.body}');
+    }
+
+    final decoded = jsonDecode(res.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Invalid resumeInterview response: ${res.body}');
+    }
+
+    return decoded;
+  }
+
   // --------------------------------------------------
   // 🏁 FINAL RESULT
   // --------------------------------------------------
@@ -166,5 +183,14 @@ class InterviewApi {
     }
 
     return interview;
+  }
+
+  static Future<void> deleteInterview(String sessionId) async {
+    final url = Uri.parse('$baseUrl/$sessionId');
+    final res = await http.delete(url, headers: _headers());
+
+    if (res.statusCode != 200) {
+      throw Exception('deleteInterview failed (${res.statusCode}): ${res.body}');
+    }
   }
 }

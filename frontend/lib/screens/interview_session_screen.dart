@@ -9,11 +9,13 @@ import 'interview_result_screen.dart';
 class InterviewSessionScreen extends StatefulWidget {
   final List<int> repoIds;
   final String difficulty;
+  final String? existingSessionId;
 
   const InterviewSessionScreen({
     super.key,
     required this.repoIds,
     required this.difficulty,
+    this.existingSessionId,
   });
 
   @override
@@ -33,21 +35,43 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
   @override
   void initState() {
     super.initState();
-    _startInterview();
+    _initializeInterview();
   }
 
-  Future<void> _startInterview() async {
+  Future<void> _initializeInterview() async {
     setState(() {
       initialLoading = true;
       errorMessage = null;
     });
 
     try {
+      if (widget.existingSessionId != null && widget.existingSessionId!.isNotEmpty) {
+        final resumed = await InterviewApi.resumeInterview(widget.existingSessionId!);
+        if (!mounted) return;
+
+        if (resumed['done'] == true) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => InterviewResultPopup(sessionId: widget.existingSessionId!),
+            ),
+          );
+          return;
+        }
+
+        setState(() {
+          sessionId = resumed['sessionId']?.toString() ?? widget.existingSessionId;
+          currentQuestion = resumed['question']?.toString();
+          currentIndex = (resumed['questionIndex'] ?? 0) as int;
+          initialLoading = false;
+        });
+        return;
+      }
+
       final createdSessionId = await InterviewApi.startInterview(
         repoIds: widget.repoIds,
         difficulty: widget.difficulty,
       );
-
       final firstQuestion = await InterviewApi.getFirstQuestion(createdSessionId);
 
       if (!mounted) return;
@@ -58,10 +82,10 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
         currentIndex = 0;
         initialLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
-        errorMessage = 'Failed to start interview';
+        errorMessage = e.toString().replaceFirst('Exception: ', '');
         initialLoading = false;
       });
     }
@@ -91,8 +115,8 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
       }
 
       setState(() {
-        currentIndex = response['questionIndex'] ?? currentIndex;
-        currentQuestion = response['question'];
+        currentIndex = (response['questionIndex'] ?? currentIndex) as int;
+        currentQuestion = response['question']?.toString();
         submitting = false;
       });
     } catch (_) {
@@ -119,7 +143,7 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
     if (errorMessage != null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Mock Interview')),
-        body: AppErrorState(message: errorMessage!, onRetry: _startInterview),
+        body: AppErrorState(message: errorMessage!, onRetry: _initializeInterview),
       );
     }
 
@@ -141,11 +165,11 @@ class _InterviewSessionScreenState extends State<InterviewSessionScreen> {
               child: InterviewProgress(current: currentIndex + 1, total: 10),
             ),
             Expanded(
-              child: Container(
+              child: SizedBox(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16),
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

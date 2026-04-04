@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/favourite_repo.dart';
 import '../services/activity_service.dart';
 import '../services/repository_service.dart';
-import 'loading/section_skeleton.dart';
+import 'loading/app_skeleton.dart';
 import 'repo_card.dart';
 import 'section_title.dart';
 
@@ -37,7 +37,15 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
           future: _favouriteRepos,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SectionSkeleton(count: 3);
+              return const AppSkeleton(
+                child: Column(
+                  children: [
+                    RepoCardSkeleton(),
+                    RepoCardSkeleton(),
+                    RepoCardSkeleton(),
+                  ],
+                ),
+              );
             }
 
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -85,7 +93,14 @@ class _WorkspaceSectionState extends State<WorkspaceSection> {
           future: _activities,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SectionSkeleton(count: 2);
+              return const AppSkeleton(
+                child: Column(
+                  children: [
+                    ActivityCardSkeleton(),
+                    ActivityCardSkeleton(),
+                  ],
+                ),
+              );
             }
 
             if (!snapshot.hasData || snapshot.data!.isEmpty) {

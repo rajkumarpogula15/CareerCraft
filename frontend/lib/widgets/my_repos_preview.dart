@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../state/app_state.dart';
 import '../config/app_config.dart';
 import '../widgets/repo_card.dart';
+import '../widgets/loading/app_skeleton.dart';
 import '../screens/repos_screen.dart';
 
 class MyReposPreview extends StatefulWidget {
@@ -54,7 +55,15 @@ class _MyReposPreviewState extends State<MyReposPreview> {
     if (loading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(child: CircularProgressIndicator()),
+        child: AppSkeleton(
+          child: Column(
+            children: [
+              RepoCardSkeleton(),
+              RepoCardSkeleton(),
+              RepoCardSkeleton(),
+            ],
+          ),
+        ),
       );
     }
 

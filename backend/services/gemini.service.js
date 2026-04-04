@@ -6,6 +6,7 @@ const PURPOSE_KEY_ENV = {
   question_generation: 'GEMINI_API_KEY_QUESTION',
   answer_evaluation: 'GEMINI_API_KEY_EVALUATION',
   final_analysis: 'GEMINI_API_KEY_ANALYSIS',
+  repo_chat: 'GEMINI_API_KEY_ANALYSIS',
   repo_summary: 'GEMINI_API_KEY_ANALYSIS',
 };
 

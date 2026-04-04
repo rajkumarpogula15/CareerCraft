@@ -24,6 +24,10 @@ const CODE_EXTENSIONS = [
 
 const MAX_FILE_SIZE = 150_000;
 const MAX_FILES = 300;
+const REPO_CACHE_TTL_MS = 10 * 60 * 1000;
+const FETCH_CONCURRENCY = 12;
+
+const repoFileCache = new Map();
 
 /* ---------------- HELPERS ---------------- */
 
@@ -49,9 +53,59 @@ function filePriority(path) {
   return 0;
 }
 
+function getRepoCacheKey(owner, repo) {
+  return `${owner}/${repo}`.toLowerCase();
+}
+
+function getCachedRepoFiles(owner, repo) {
+  const cached = repoFileCache.get(getRepoCacheKey(owner, repo));
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    repoFileCache.delete(getRepoCacheKey(owner, repo));
+    return null;
+  }
+
+  return cached.files;
+}
+
+function setCachedRepoFiles(owner, repo, files) {
+  repoFileCache.set(getRepoCacheKey(owner, repo), {
+    files,
+    expiresAt: Date.now() + REPO_CACHE_TTL_MS,
+  });
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let currentIndex = 0;
+
+  async function worker() {
+    while (currentIndex < items.length) {
+      const itemIndex = currentIndex++;
+      results[itemIndex] = await mapper(items[itemIndex], itemIndex);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => worker()
+  );
+
+  await Promise.all(workers);
+  return results;
+}
+
 /* ---------------- MAIN FETCH ---------------- */
 
 async function fetchRepoFiles(owner, repo, token) {
+  const cachedFiles = getCachedRepoFiles(owner, repo);
+  if (cachedFiles) {
+    return cachedFiles;
+  }
+
   const headers = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
@@ -83,8 +137,10 @@ async function fetchRepoFiles(owner, repo, token) {
     .slice(0, MAX_FILES);
 
   // 4️⃣ Fetch file contents
-  const files = await Promise.all(
-    blobs.map(async file => {
+  const files = await mapWithConcurrency(
+    blobs,
+    FETCH_CONCURRENCY,
+    async file => {
       try {
         const res = await axios.get(
           `https://api.github.com/repos/${owner}/${repo}/contents/${file.path}?ref=${defaultBranch}`,
@@ -105,10 +161,12 @@ async function fetchRepoFiles(owner, repo, token) {
       } catch {
         return null;
       }
-    })
+    }
   );
 
-  return files.filter(Boolean);
+  const filteredFiles = files.filter(Boolean);
+  setCachedRepoFiles(owner, repo, filteredFiles);
+  return filteredFiles;
 }
 
 module.exports = { fetchRepoFiles };

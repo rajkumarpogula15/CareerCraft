@@ -7,6 +7,8 @@ const ChatSessionSchema = new mongoose.Schema(
     repoOwner: String,
     repoName: String,
     title: String, // e.g. "Auth Logic Discussion"
+    lastTopic: String,
+    lastContextPaths: [String],
   },
   { timestamps: true }
 );

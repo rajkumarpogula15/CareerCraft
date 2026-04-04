@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ai_content_service.dart';
+import 'loading/app_skeleton.dart';
 
 enum SocialPlatform { linkedin, x, reddit }
 
@@ -362,6 +363,10 @@ class _SocialPostSheetState extends State<SocialPostSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    if (_loading) {
+      return const SheetPreviewSkeleton(showDualActions: true);
+    }
+
     return SafeArea(
       child: Column(
         children: [
@@ -382,26 +387,24 @@ class _SocialPostSheetState extends State<SocialPostSheet> {
             ),
           ),
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Card(
-                      color: const Color(0xFFF8FAFC),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: _buildBotContent(),
-                          ),
-                        ),
-                      ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                color: const Color(0xFFF8FAFC),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _buildBotContent(),
                     ),
                   ),
+                ),
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/ai_content_service.dart';
+import 'loading/app_skeleton.dart';
 
 class ResumePointsSheet extends StatefulWidget {
   final String repoName;
@@ -239,6 +240,10 @@ class _ResumePointsSheetState extends State<ResumePointsSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    if (_loading) {
+      return const SheetPreviewSkeleton(showHandle: true);
+    }
+
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -292,29 +297,27 @@ class _ResumePointsSheetState extends State<ResumePointsSheet> {
 
             /// Content
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceVariant.withOpacity(
-                          0.55,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _points == null
-                              ? [
-                                  const Text(
-                                    'Failed to generate resume points.',
-                                  ),
-                                ]
-                              : _buildBotContent(),
-                        ),
-                      ),
-                    ),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceVariant.withOpacity(
+                    0.55,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _points == null
+                        ? [
+                            const Text(
+                              'Failed to generate resume points.',
+                            ),
+                          ]
+                        : _buildBotContent(),
+                  ),
+                ),
+              ),
             ),
 
             const SizedBox(height: 20),

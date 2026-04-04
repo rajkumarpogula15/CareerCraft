@@ -7,6 +7,7 @@ import '../screens/repo_chat_screen.dart';
 import '../screens/settings_screen.dart';
 import '../services/search_service.dart';
 import '../state/theme_controller.dart';
+import 'loading/app_skeleton.dart';
 
 class TopBar extends StatelessWidget implements PreferredSizeWidget {
   final ThemeController themeController;
@@ -161,7 +162,7 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
             const SizedBox(height: 12),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const SearchResultsSkeleton()
                   : (_activeQuery.isEmpty)
                   ? const Center(child: Text('Start typing to search'))
                   : (!hasResults)

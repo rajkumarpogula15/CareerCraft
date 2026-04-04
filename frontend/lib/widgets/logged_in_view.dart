@@ -6,7 +6,7 @@ import '../utils/iterable_ext.dart';
 import 'continue_session_card.dart';
 import 'home_footer.dart';
 import 'home_header.dart';
-import 'loading/section_skeleton.dart';
+import 'loading/app_skeleton.dart';
 import 'readme_preview_sheet.dart';
 import 'smart_suggestions_section.dart';
 import 'workspace_section.dart';
@@ -183,7 +183,7 @@ class _LoggedInViewState extends State<LoggedInView>
           HomeHeader(onTap: widget.onOpenProfile),
           const SizedBox(height: 10),
           if (_loadingSuggestions)
-            const SectionSkeleton(count: 3)
+            const AppSkeleton(child: SuggestionSectionSkeleton())
           else
             FadeTransition(
               opacity: _fadeAnimation,
@@ -196,7 +196,7 @@ class _LoggedInViewState extends State<LoggedInView>
             ),
           const SizedBox(height: 10),
           if (_loadingActivities)
-            const SectionSkeleton(count: 2)
+            const AppSkeleton(child: ContinueSessionSkeleton())
           else if (repoChat != null)
             FadeTransition(
               opacity: _fadeAnimation,

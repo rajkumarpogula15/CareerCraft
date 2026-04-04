@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
 import '../state/app_state.dart';
+import 'loading/app_skeleton.dart';
 
 class ReadmePreviewSheet extends StatefulWidget {
   final String repoName;
@@ -122,6 +123,10 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    if (loading) {
+      return const SheetPreviewSkeleton();
+    }
+
     return SafeArea(
       child: Column(
         children: [
@@ -177,10 +182,6 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
   // ==================================================
 
   Widget _body() {
-    if (loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     if (error != null) {
       return _errorState(error!);
     }

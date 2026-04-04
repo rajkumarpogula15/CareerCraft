@@ -10,12 +10,13 @@ class ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final bgColor = isUser
         ? theme.colorScheme.primaryContainer
         : theme.colorScheme.surfaceContainerLow;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Align(
         alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
         child: ConstrainedBox(
@@ -24,10 +25,23 @@ class ChatBubble extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
             decoration: BoxDecoration(
               color: bgColor,
-              borderRadius: BorderRadius.circular(16),
-              border: isUser
-                  ? null
-                  : Border.all(color: theme.colorScheme.outlineVariant),
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: isUser
+                    ? const Radius.circular(18)
+                    : const Radius.circular(4),
+                bottomRight: isUser
+                    ? const Radius.circular(4)
+                    : const Radius.circular(18),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.shadowColor.withOpacity(0.05),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,6 +55,8 @@ class ChatBubble extends StatelessWidget {
       ),
     );
   }
+
+  /* ---------------- CONTENT ---------------- */
 
   List<Widget> _buildContent(BuildContext context) {
     final blocks = message.split('```');
@@ -70,46 +86,18 @@ class ChatBubble extends StatelessWidget {
       final line = raw.trimRight();
       if (line.trim().isEmpty) continue;
 
+      if (line.startsWith('### ')) {
+        widgets.add(_heading(context, line.substring(4), size: 16));
+        continue;
+      }
+
       if (line.startsWith('## ')) {
-        widgets.add(
-          Padding(
-            padding: const EdgeInsets.only(top: 10, bottom: 6),
-            child: Text(
-              line.replaceFirst('## ', ''),
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-        );
+        widgets.add(_heading(context, line.substring(3), size: 18));
         continue;
       }
 
       if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
         widgets.add(_bulletLine(context, line.trim().substring(2)));
-        continue;
-      }
-
-      if (RegExp(r'^\d+\.\s').hasMatch(line.trim())) {
-        final match = RegExp(r'^(\d+\.)\s(.*)$').firstMatch(line.trim());
-        final number = match?.group(1) ?? '';
-        final content = match?.group(2) ?? line;
-
-        widgets.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$number ',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                Expanded(child: _inlineRichText(context, content)),
-              ],
-            ),
-          ),
-        );
         continue;
       }
 
@@ -124,13 +112,26 @@ class ChatBubble extends StatelessWidget {
     return widgets;
   }
 
+  Widget _heading(BuildContext context, String text, {required double size}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 6),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontSize: size,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   Widget _bulletLine(BuildContext context, String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 8, bottom: 6),
+      padding: const EdgeInsets.only(left: 6, bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('- ', style: TextStyle(fontSize: 16)),
+          const Text('• '),
           Expanded(child: _inlineRichText(context, text)),
         ],
       ),
@@ -144,9 +145,14 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
+  /* ---------------- INLINE PARSER ---------------- */
+
   List<InlineSpan> _parseInlineSpans(BuildContext context, String text) {
     final spans = <InlineSpan>[];
-    final regex = RegExp(r'(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)');
+
+    final regex = RegExp(
+      r'(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`|\$[^$\n]+\$|O\([A-Za-z0-9]+\))',
+    );
 
     int lastIndex = 0;
 
@@ -157,25 +163,28 @@ class ChatBubble extends StatelessWidget {
 
       final token = match.group(0)!;
 
-      if (token.startsWith('**') && token.endsWith('**')) {
+      if (token.startsWith('**')) {
         spans.add(
           TextSpan(
             text: token.substring(2, token.length - 2),
-            style: const TextStyle(fontWeight: FontWeight.w700),
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         );
-      } else if (token.startsWith('*') && token.endsWith('*')) {
+      } else if (token.startsWith('*')) {
         spans.add(
           TextSpan(
             text: token.substring(1, token.length - 1),
             style: const TextStyle(fontStyle: FontStyle.italic),
           ),
         );
-      } else if (token.startsWith('`') && token.endsWith('`')) {
-        final code = token.substring(1, token.length - 1);
-        spans.addAll(_highlightCode(context, code, inline: true));
       } else {
-        spans.add(TextSpan(text: token));
+        spans.addAll(
+          _highlightCode(
+            context,
+            token.replaceAll(RegExp(r'[`$]'), ''),
+            inline: true,
+          ),
+        );
       }
 
       lastIndex = match.end;
@@ -188,27 +197,35 @@ class ChatBubble extends StatelessWidget {
     return spans;
   }
 
+  /* ---------------- CODE BLOCK ---------------- */
+
   Widget _codeBlock(BuildContext context, String code) {
     final theme = Theme.of(context);
 
     return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: SelectableText.rich(
-        TextSpan(children: _highlightCode(context, code, inline: false)),
-        style: const TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 13.5,
-          height: 1.45,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: SelectableText.rich(
+            TextSpan(children: _highlightCode(context, code, inline: false)),
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 13.5,
+              height: 1.5,
+            ),
+          ),
         ),
       ),
     );
   }
+
+  /* ---------------- FINAL CODE HIGHLIGHT ---------------- */
 
   List<InlineSpan> _highlightCode(
     BuildContext context,
@@ -216,130 +233,107 @@ class ChatBubble extends StatelessWidget {
     required bool inline,
   }) {
     final scheme = Theme.of(context).colorScheme;
-    final keywords = <String>{
+
+    final keywordColor = scheme.primary;
+    final typeColor = Colors.purpleAccent;
+    final stringColor = Colors.green;
+    final numberColor = Colors.orange;
+    final commentColor = Colors.grey;
+    final defaultColor = scheme.onSurface;
+
+    final keywords = {
       'if',
       'else',
       'for',
       'while',
       'return',
-      'break',
-      'continue',
-      'true',
-      'false',
-      'null',
-      'const',
-      'let',
-      'var',
-      'function',
-      'async',
-      'await',
-      'import',
-      'export',
-      'from',
-      'default',
       'class',
       'new',
-      'final',
-      'Widget',
-      'BuildContext',
-      'State',
-      'setState',
-      'build',
-      'def',
-      'self',
-      'None',
+      'public',
+      'private',
+      'static',
+      'void',
       'int',
       'double',
       'float',
-      'void',
-      'public',
-      'private',
-      'protected',
-      'div',
-      'span',
-      'body',
-      'html',
+      'char',
+      'true',
+      'false',
+      'null',
     };
 
-    final tokenRegex = RegExp(r'''(\s+|[{}()[\].,;:+\-*/=<>&|!?"'`~])''');
-    final parts = code.split(tokenRegex);
-    final matches = tokenRegex.allMatches(code).toList();
-    final spans = <InlineSpan>[];
+    final regex = RegExp(
+      r'(//.*?$|/\*[\s\S]*?\*/|".*?"|'
+      "'.*?'"
+      r'|\d+|[a-zA-Z_]+|\s+|[^\s])',
+      multiLine: true,
+    );
 
-    for (int i = 0; i < parts.length; i++) {
-      final token = parts[i];
-      if (token.isNotEmpty) {
-        final isKeyword = keywords.contains(token);
-        spans.add(
-          TextSpan(
-            text: token,
-            style: TextStyle(
-              color: isKeyword ? scheme.primary : scheme.onSurfaceVariant,
-              fontWeight: isKeyword ? FontWeight.w700 : FontWeight.w400,
-              fontFamily: 'monospace',
-              backgroundColor: inline
-                  ? scheme.surfaceContainerHighest
-                  : Colors.transparent,
-            ),
-          ),
-        );
+    return regex.allMatches(code).map((match) {
+      final token = match.group(0)!;
+
+      if (RegExp(r'^\s+$').hasMatch(token)) {
+        return TextSpan(text: token);
       }
 
-      if (i < matches.length) {
-        spans.add(
-          TextSpan(
-            text: matches[i].group(0),
-            style: TextStyle(
-              color: scheme.onSurfaceVariant,
-              fontFamily: 'monospace',
-              backgroundColor: inline
-                  ? scheme.surfaceContainerHighest
-                  : Colors.transparent,
-            ),
-          ),
-        );
-      }
-    }
+      Color color = defaultColor;
+      FontWeight weight = FontWeight.normal;
 
-    return spans;
+      if (token.startsWith('//') || token.startsWith('/*')) {
+        color = commentColor;
+      } else if (token.startsWith('"') || token.startsWith("'")) {
+        color = stringColor;
+      } else if (RegExp(r'^\d+$').hasMatch(token)) {
+        color = numberColor;
+      } else if (RegExp(r'^O\(.+\)$').hasMatch(token)) {
+        color = Colors.orange;
+        weight = FontWeight.bold;
+      } else if (keywords.contains(token)) {
+        color = keywordColor;
+        weight = FontWeight.bold;
+      } else if (RegExp(r'^[A-Z][a-zA-Z]+$').hasMatch(token)) {
+        color = typeColor;
+      } else if (RegExp(r'^[a-zA-Z_]+\(\)$').hasMatch(token)) {
+        color = Colors.blueAccent;
+      }
+
+      return TextSpan(
+        text: token,
+        style: TextStyle(
+          color: color,
+          fontWeight: weight,
+          fontFamily: 'monospace',
+          backgroundColor: inline
+              ? scheme.surfaceContainerHighest
+              : Colors.transparent,
+        ),
+      );
+    }).toList();
   }
+
+  /* ---------------- COPY BUTTON ---------------- */
 
   Widget _copyButton(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: GestureDetector(
-          onTap: () {
-            Clipboard.setData(ClipboardData(text: message));
-            HapticFeedback.selectionClick();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Copied'),
-                duration: Duration(milliseconds: 900),
-              ),
-            );
-          },
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.copy_rounded,
-                size: 16,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'Copy',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton.icon(
+        onPressed: () {
+          Clipboard.setData(ClipboardData(text: message));
+          HapticFeedback.selectionClick();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Copied')));
+        },
+        icon: Icon(
+          Icons.copy_rounded,
+          size: 16,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        label: Text(
+          '',
+          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
         ),
       ),
     );

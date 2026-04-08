@@ -50,9 +50,9 @@ const normalizeAxiosError = err => {
 };
 
 /**
- * Resolve repo from user + orgs (push access only)
+ * Resolve repo from user + orgs.
  */
-const resolveRepo = async (token, repoName) => {
+const resolveRepo = async (token, repoName, { requirePush = false } = {}) => {
   const repos = [];
 
   const userRepos = await githubGet(
@@ -80,7 +80,7 @@ const resolveRepo = async (token, repoName) => {
     );
   }
 
-  if (!repo.permissions?.push) {
+  if (requirePush && !repo.permissions?.push) {
     throw Object.assign(
       new Error('Insufficient permissions on repository'),
       { status: 403 }
@@ -88,6 +88,27 @@ const resolveRepo = async (token, repoName) => {
   }
 
   return repo;
+};
+
+const parseBulletPoints = (text, maxPoints = 2) => {
+  if (!text || typeof text !== 'string') {
+    return [];
+  }
+
+  const points = text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line =>
+      line
+        .replace(/^[-*\u2022]\s*/, '')
+        .replace(/^\d+[\).\s-]+/, '')
+        .replace(/\*\*/g, '')
+        .trim()
+    )
+    .filter(Boolean);
+
+  return points.slice(0, maxPoints);
 };
 
 /**
@@ -359,7 +380,7 @@ router.post('/generate-resume-points', requireAuth, async (req, res) => {
     const prompt = `
 You are a senior software engineer and ATS resume optimization expert.
 
-Generate EXACTLY 2–4 resume bullet points optimized for:
+Generate EXACTLY 2 resume bullet points optimized for:
 - Applicant Tracking Systems (ATS)
 - Recruiter keyword scanning
 - Technical interview screening
@@ -389,11 +410,16 @@ Hard Rules:
 - If information is limited, stay high-level and factual
 
 Output:
-- 2–4 bullet points, ATS-ready, resume-safe
+- Exactly 2 bullet points, ATS-friendly, recruiter-focused, resume-safe
 `.trim();
 
 
-    const points = await generateWithGemini(prompt);
+    const pointsText = await generateWithGemini(prompt);
+    const points = parseBulletPoints(pointsText);
+
+    if (!points.length) {
+      throw new Error('AI returned invalid resume points');
+    }
 
     await logActivity({
       userId: req.user.userId,
@@ -414,3 +440,6 @@ Output:
 });
 
 module.exports = router;
+
+
+

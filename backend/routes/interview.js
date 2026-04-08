@@ -76,8 +76,8 @@ async function generateAndAppendFirstQuestion(session, repoSummaries) {
 router.post('/summarize-repos', requireAuth, async (req, res) => {
   const { repos } = req.body;
 
-  if (!Array.isArray(repos) || repos.length < 1) {
-    return res.status(400).json({ error: 'Invalid repo list' });
+  if (!Array.isArray(repos) || repos.length < 1 || repos.length > 4) {
+    return res.status(400).json({ error: 'Select 1 to 4 repositories' });
   }
 
   try {

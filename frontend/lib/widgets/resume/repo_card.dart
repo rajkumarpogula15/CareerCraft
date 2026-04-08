@@ -5,10 +5,9 @@ class RepoCard extends StatelessWidget {
   final bool included;
   final bool generating;
   final List<String> points;
-
   final VoidCallback onToggleInclude;
   final VoidCallback onGenerate;
-  final Function(int, String) onEditPoint;
+  final VoidCallback onEditPoints;
 
   const RepoCard({
     super.key,
@@ -18,7 +17,7 @@ class RepoCard extends StatelessWidget {
     required this.points,
     required this.onToggleInclude,
     required this.onGenerate,
-    required this.onEditPoint,
+    required this.onEditPoints,
   });
 
   @override
@@ -28,46 +27,78 @@ class RepoCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CheckboxListTile(
-              value: included,
-              onChanged: (_) => onToggleInclude(),
-              title: Text(repo['name']),
-              subtitle: Text(repo['description'] ?? 'No description'),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: included,
+                  onChanged: (_) => onToggleInclude(),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (repo['name'] ?? 'Repository').toString(),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (repo['description'] ?? 'No description').toString(),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-
-            if (included)
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: generating ? null : onGenerate,
-                  child: generating
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: theme.colorScheme.onPrimary,
-                          ),
-                        )
-                      : const Text('Generate Resume Points'),
+            if (included) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton(
+                    onPressed: generating ? null : onGenerate,
+                    child: generating
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: theme.colorScheme.onPrimary,
+                            ),
+                          )
+                        : Text(points.isEmpty ? 'Generate Points' : 'Regenerate Points'),
+                  ),
+                  OutlinedButton(
+                    onPressed: points.isEmpty ? null : onEditPoints,
+                    child: const Text('Edit Points'),
+                  ),
+                ],
+              ),
+            ],
+            if (points.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ...points.take(2).map(
+                (point) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '- $point',
+                    style: theme.textTheme.bodyMedium,
+                  ),
                 ),
               ),
-
-            if (points.isNotEmpty)
-              Column(
-                children: points.asMap().entries.map((e) {
-                  return TextFormField(
-                    initialValue: e.value,
-                    maxLines: 2,
-                    decoration: const InputDecoration(prefixText: '• '),
-                    onChanged: (v) => onEditPoint(e.key, v),
-                  );
-                }).toList(),
-              ),
+            ],
           ],
         ),
       ),

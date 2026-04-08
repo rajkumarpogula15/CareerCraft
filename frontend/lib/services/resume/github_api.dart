@@ -7,6 +7,35 @@ import '../../state/app_state.dart';
 class GithubApi {
   static final String _base = AppConfig.backendBaseUrl;
 
+  static List<String> _parsePoints(dynamic points) {
+    if (points is List) {
+      return points
+          .map((e) => e.toString().trim())
+          .where((point) => point.isNotEmpty)
+          .take(2)
+          .toList();
+    }
+
+    if (points is String) {
+      return points
+          .split('\n')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .map(
+            (line) => line
+                .replaceFirst(RegExp(r'^[-*]\s*'), '')
+                .replaceFirst(RegExp(r'^\d+[\).\s-]+'), '')
+                .replaceAll(RegExp(r'\*\*'), '')
+                .trim(),
+          )
+          .where((point) => point.isNotEmpty)
+          .take(2)
+          .toList();
+    }
+
+    return const [];
+  }
+
   static Future<List<Map<String, dynamic>>> fetchRepos() async {
     print('[GithubApi] fetchRepos() called');
 
@@ -67,23 +96,11 @@ class GithubApi {
       throw Exception(decoded['message'] ?? 'Failed');
     }
 
-    final points = decoded['points'];
-
-    if (points is List) {
-      return points.map((e) => e.toString()).toList();
+    final parsedPoints = _parsePoints(decoded['points']);
+    if (parsedPoints.isEmpty) {
+      throw Exception('Invalid points format');
     }
 
-    if (points is String) {
-      return points
-          .split('\n')
-          .where((l) => l.trim().startsWith('*'))
-          .map(
-            (l) =>
-                l.replaceFirst('*', '').replaceAll(RegExp(r'\*\*'), '').trim(),
-          )
-          .toList();
-    }
-
-    throw Exception('Invalid points format');
+    return parsedPoints;
   }
 }

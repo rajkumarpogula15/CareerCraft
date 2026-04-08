@@ -3,38 +3,116 @@ const axios = require('axios');
 const jwt = require('jsonwebtoken');
 
 const User = require('../models/User');
+const ChatSession = require('../models/ChatSession');
+const InterviewSession = require('../models/InterviewSession');
+const RepoSummary = require('../models/RepoSummary');
+const requireAuth = require('../middleware/requireAuth');
 
 const router = express.Router();
 
 /**
  * ================================
- * STEP 1: Redirect to GitHub OAuth
+ * HELPER FUNCTIONS
+ * ================================
+ */
+function startOfUtcDay(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function dayDiffUtc(a, b) {
+  const ms = startOfUtcDay(a).getTime() - startOfUtcDay(b).getTime();
+  return Math.round(ms / (24 * 60 * 60 * 1000));
+}
+
+function normalizeSkillMap(skillMap = {}) {
+  return {
+    java: Math.max(0, Math.min(100, Math.round(skillMap.java ?? 0))),
+    dsa: Math.max(0, Math.min(100, Math.round(skillMap.dsa ?? 0))),
+    systemDesign: Math.max(0, Math.min(100, Math.round(skillMap.systemDesign ?? 0))),
+    fullStack: Math.max(0, Math.min(100, Math.round(skillMap.fullStack ?? 0))),
+    aiMl: Math.max(0, Math.min(100, Math.round(skillMap.aiMl ?? 0))),
+  };
+}
+
+function computeSkillProgress(summaries = []) {
+  const scores = {
+    java: 0,
+    dsa: 0,
+    systemDesign: 0,
+    fullStack: 0,
+    aiMl: 0,
+  };
+
+  for (const summary of summaries) {
+    const stack = (summary.techStack || []).map(v => String(v).toLowerCase());
+    const features = (summary.keyFeatures || []).join(' ').toLowerCase();
+    const arch = (summary.architectureHints || []).join(' ').toLowerCase();
+    const purpose = String(summary.purpose || '').toLowerCase();
+    const desc = String(summary.description || '').toLowerCase();
+    const text = `${stack.join(' ')} ${features} ${arch} ${purpose} ${desc}`;
+
+    if (/(java|spring|jdk|jvm)/.test(text)) scores.java += 22;
+    if (/(algorithm|dsa|binary tree|graph|dp|complexity|leetcode)/.test(text)) scores.dsa += 20;
+    if (/(system design|architecture|microservice|distributed|scalab|cache|queue|load balanc)/.test(text)) scores.systemDesign += 22;
+    if (/(react|node|express|full stack|flutter|dart|frontend|backend|mongodb|sql)/.test(text)) scores.fullStack += 18;
+    if (/(ai|ml|machine learning|tensorflow|pytorch|llm|nlp|model|inference)/.test(text)) scores.aiMl += 24;
+  }
+
+  return normalizeSkillMap(scores);
+}
+
+function computeLanguageDistribution(repos = []) {
+  const languageCount = {};
+  let total = 0;
+
+  for (const repo of repos) {
+    const lang = repo.language ? String(repo.language).trim() : '';
+    if (!lang) continue;
+    languageCount[lang] = (languageCount[lang] || 0) + 1;
+    total++;
+  }
+
+  if (total === 0) return {};
+
+  const sorted = Object.entries(languageCount).sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, 5);
+  const otherCount = sorted.slice(5).reduce((acc, [, count]) => acc + count, 0);
+
+  const result = {};
+  for (const [lang, count] of top) {
+    result[lang] = Math.round((count / total) * 100);
+  }
+
+  if (otherCount > 0) {
+    result.Other = Math.round((otherCount / total) * 100);
+  }
+
+  const keys = Object.keys(result);
+  const sum = keys.reduce((acc, key) => acc + result[key], 0);
+  if (sum !== 100 && keys.length > 0) {
+    result[keys[0]] += (100 - sum);
+  }
+
+  return result;
+}
+
+/**
+ * ================================
+ * LOGIN (WITH PROXY FIX)
  * ================================
  */
 router.get('/login', (req, res) => {
   try {
     console.log('\n===== 🔐 GITHUB LOGIN STARTED =====');
 
-    console.log('🌐 FULL REQUEST URL:', req.originalUrl);
-    console.log('📡 Protocol:', req.protocol);
-    console.log('🏠 Host:', req.get('host'));
-    console.log('🔁 X-Forwarded-Proto:', req.headers['x-forwarded-proto']);
-    console.log('🔁 X-Forwarded-Host:', req.headers['x-forwarded-host']);
-
     if (!process.env.GITHUB_CLIENT_ID) {
-      console.error('❌ GITHUB_CLIENT_ID missing!');
-      return res.status(500).json({
-        error: 'GitHub Client ID not configured',
-      });
+      return res.status(500).json({ error: 'GitHub Client ID not configured' });
     }
 
-    // 🔥 FIX: Handle Render proxy (IMPORTANT)
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
 
     const redirectUri = `${protocol}://${host}/auth/github/callback`;
-
-    console.log('🚨 FINAL REDIRECT URI:', redirectUri);
 
     const githubUrl =
       'https://github.com/login/oauth/authorize' +
@@ -42,50 +120,27 @@ router.get('/login', (req, res) => {
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       '&scope=read:user repo';
 
-    console.log('✅ GitHub URL:', githubUrl);
-    console.log('➡️ Redirecting to GitHub...\n');
-
     res.redirect(githubUrl);
   } catch (error) {
-    console.error('🔥 LOGIN ERROR:', error);
-
-    res.status(500).json({
-      error: 'Failed to start GitHub auth',
-      details: error.message,
-    });
+    res.status(500).json({ error: 'Failed to start GitHub auth' });
   }
 });
 
 /**
  * ================================
- * STEP 2: GitHub OAuth Callback
+ * CALLBACK (WITH ALL FEATURES)
  * ================================
  */
 router.get('/callback', async (req, res) => {
-  console.log('\n===== 🔁 GITHUB CALLBACK HIT =====');
-
   const { code } = req.query;
 
-  console.log('📩 Received Code:', code);
-
-  if (!code) {
-    console.error('❌ Code Missing');
-    return res.status(400).send('Missing code');
-  }
+  if (!code) return res.status(400).send('Missing code');
 
   try {
-    // 🔥 FIX: Handle Render proxy again
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
 
     const redirectUri = `${protocol}://${host}/auth/github/callback`;
-
-    console.log('🔁 CALLBACK REDIRECT URI:', redirectUri);
-
-    /**
-     * 🔑 EXCHANGE CODE FOR TOKEN
-     */
-    console.log('🔄 Exchanging code for token...');
 
     const tokenRes = await axios.post(
       'https://github.com/login/oauth/access_token',
@@ -95,49 +150,20 @@ router.get('/callback', async (req, res) => {
         code,
         redirect_uri: redirectUri,
       },
-      {
-        headers: { Accept: 'application/json' },
-      }
+      { headers: { Accept: 'application/json' } }
     );
-
-    console.log('✅ Token Response:', tokenRes.data);
 
     const accessToken = tokenRes.data.access_token;
+    if (!accessToken) return res.status(401).send('No access token');
 
-    if (!accessToken) {
-      console.error('❌ No Access Token');
-      return res.status(401).send('No access token');
-    }
-
-    console.log('🔑 Access Token Received');
-
-    /**
-     * 👤 FETCH USER DATA
-     */
-    console.log('📡 Fetching GitHub User...');
-
-    const ghUserRes = await axios.get(
-      'https://api.github.com/user',
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/vnd.github+json',
-        },
-      }
-    );
-
-    const gh = ghUserRes.data;
-
-    console.log('✅ GitHub User:', {
-      id: gh.id,
-      username: gh.login,
-      email: gh.email,
+    const ghUserRes = await axios.get('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/vnd.github+json',
+      },
     });
 
-    /**
-     * 💾 SAVE USER
-     */
-    console.log('💾 Saving User to DB...');
+    const gh = ghUserRes.data;
 
     const user = await User.findOneAndUpdate(
       { githubId: gh.id },
@@ -147,25 +173,39 @@ router.get('/callback', async (req, res) => {
         name: gh.name,
         avatar: gh.avatar_url,
         email: gh.email,
+        public_repos: gh.public_repos,
+        followers: gh.followers,
+        following: gh.following,
         githubAccessToken: accessToken,
       },
-      {
-        upsert: true,
-        new: true,
-      }
+      { upsert: true, new: true }
     );
 
-    console.log('✅ User Saved:', user._id);
+    // 🔥 LOGIN STREAK
+    const now = new Date();
+    const lastLoginAt = user.lastLoginAt ? new Date(user.lastLoginAt) : null;
+    const loginDates = user.loginDates || [];
 
-    /**
-     * 🔐 CREATE JWT
-     */
-    console.log('🔐 Creating JWT...');
+    const todayStart = startOfUtcDay(now);
+    const alreadyLoggedToday = loginDates.some(d => startOfUtcDay(new Date(d)).getTime() === todayStart.getTime());
 
-    if (!process.env.JWT_SECRET) {
-      console.error('❌ JWT_SECRET Missing!');
-      return res.status(500).send('JWT Secret missing');
+    if (!alreadyLoggedToday) loginDates.push(now);
+
+    let loginStreak = user.loginStreak || 0;
+
+    if (!lastLoginAt) loginStreak = 1;
+    else {
+      const diff = dayDiffUtc(now, lastLoginAt);
+      if (diff === 1) loginStreak += 1;
+      else if (diff > 1) loginStreak = 1;
     }
+
+    user.lastLoginAt = now;
+    user.loginStreak = loginStreak;
+    user.maxLoginStreak = Math.max(user.maxLoginStreak || 0, loginStreak);
+    user.loginDates = loginDates;
+
+    await user.save();
 
     const jwtToken = jwt.sign(
       { userId: user._id },
@@ -173,22 +213,127 @@ router.get('/callback', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    console.log('✅ JWT Created');
-
-    /**
-     * 📱 REDIRECT TO APP
-     */
-    const redirectUrl = `careercraft://login-success?token=${jwtToken}`;
-
-    console.log('📲 Redirecting to App:', redirectUrl);
-    console.log('===== ✅ LOGIN COMPLETE =====\n');
-
-    res.redirect(redirectUrl);
+    res.redirect(`careercraft://login-success?token=${jwtToken}`);
   } catch (err) {
-    console.error('🔥 CALLBACK ERROR:', err.response?.data || err.message);
-
+    console.error(err);
     res.status(500).send('GitHub login failed');
   }
+});
+
+/**
+ * ================================
+ * REPOS
+ * ================================
+ */
+router.get('/repos', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+
+    const reposRes = await axios.get('https://api.github.com/user/repos', {
+      headers: { Authorization: `Bearer ${user.githubAccessToken}` },
+      params: { per_page: 50, sort: 'updated' },
+    });
+
+    res.json(reposRes.data);
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch repos' });
+  }
+});
+
+/**
+ * ================================
+ * PROFILE
+ * ================================
+ */
+router.get('/profile', requireAuth, async (req, res) => {
+  const user = await User.findById(req.user.userId);
+
+  res.json({
+    username: user.username,
+    name: user.name,
+    avatar: user.avatar,
+    email: user.email,
+    public_repos: user.public_repos,
+    followers: user.followers,
+    following: user.following,
+    login_streak: user.loginStreak || 0,
+    total_active_days: user.loginDates?.length || 0,
+  });
+});
+
+/**
+ * ================================
+ * DASHBOARD
+ * ================================
+ */
+router.get('/dashboard', requireAuth, async (req, res) => {
+  const user = await User.findById(req.user.userId);
+
+  const [completedInterviews, summaries, reposRes] = await Promise.all([
+    InterviewSession.countDocuments({ userId: user._id, status: 'completed' }),
+    RepoSummary.find({ userId: user._id }),
+    axios.get('https://api.github.com/user/repos', {
+      headers: { Authorization: `Bearer ${user.githubAccessToken}` },
+    }),
+  ]);
+
+  res.json({
+    profile: user,
+    stats: {
+      loginStreak: user.loginStreak,
+      totalActiveDays: user.loginDates?.length || 0,
+      completedInterviews,
+    },
+    skills: computeSkillProgress(summaries),
+    languageDistribution: computeLanguageDistribution(reposRes.data),
+  });
+});
+
+/**
+ * ================================
+ * SETTINGS
+ * ================================
+ */
+router.post('/settings', requireAuth, async (req, res) => {
+  const user = await User.findById(req.user.userId);
+
+  if (typeof req.body.notificationEnabled === 'boolean') {
+    user.notificationEnabled = req.body.notificationEnabled;
+  }
+
+  await user.save();
+
+  res.json({ success: true });
+});
+
+/**
+ * ================================
+ * SEARCH
+ * ================================
+ */
+router.get('/search', requireAuth, async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  if (!query) return res.json({ repos: [], chats: [], interviews: [] });
+
+  const user = await User.findById(req.user.userId);
+  const regex = new RegExp(query, 'i');
+
+  const reposRes = await axios.get('https://api.github.com/user/repos', {
+    headers: { Authorization: `Bearer ${user.githubAccessToken}` },
+  });
+
+  const repos = reposRes.data.filter(r => regex.test(r.name));
+
+  const chats = await ChatSession.find({
+    userId: user._id,
+    title: regex,
+  });
+
+  const interviews = await InterviewSession.find({
+    userId: user._id,
+  });
+
+  res.json({ repos, chats, interviews });
 });
 
 module.exports = router;

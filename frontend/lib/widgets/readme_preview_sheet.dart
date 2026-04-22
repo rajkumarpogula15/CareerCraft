@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -30,8 +31,6 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
 
   String? readme;
   String? error;
-
-  // Renderer source
   String? _post;
 
   @override
@@ -39,10 +38,6 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
     super.initState();
     _generateReadme();
   }
-
-  // ==================================================
-  // API
-  // ==================================================
 
   Future<void> _generateReadme() async {
     try {
@@ -65,7 +60,7 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
 
         setState(() {
           readme = content;
-          _post = content; // ✅ connect renderer
+          _post = content;
           loading = false;
         });
       } else {
@@ -91,7 +86,7 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
 
       if (res.statusCode == 200 && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('README committed to GitHub 🚀')),
+          const SnackBar(content: Text('README committed to GitHub')),
         );
         Navigator.pop(context);
       } else {
@@ -115,10 +110,6 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // ==================================================
-  // BUILD
-  // ==================================================
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -132,16 +123,12 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
         children: [
           _header(theme),
           const Divider(height: 1),
-          Expanded(child: _body()),
+          Expanded(child: _body(context)),
           _commitBar(theme),
         ],
       ),
     );
   }
-
-  // ==================================================
-  // HEADER
-  // ==================================================
 
   Widget _header(ThemeData theme) {
     return Padding(
@@ -160,9 +147,9 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${widget.repoName}',
+                  widget.repoName,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.grey.shade600,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -177,11 +164,9 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
     );
   }
 
-  // ==================================================
-  // BODY
-  // ==================================================
+  Widget _body(BuildContext context) {
+    final theme = Theme.of(context);
 
-  Widget _body() {
     if (error != null) {
       return _errorState(error!);
     }
@@ -190,11 +175,12 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
       padding: const EdgeInsets.all(12),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: theme.colorScheme.shadow.withValues(alpha: 0.08),
               blurRadius: 24,
               offset: const Offset(0, 8),
             ),
@@ -202,7 +188,7 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
         ),
         child: ListView(
           padding: const EdgeInsets.all(20),
-          children: _buildBotContent(),
+          children: _buildBotContent(context),
         ),
       ),
     );
@@ -228,13 +214,18 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
     );
   }
 
-  // ==================================================
-  // CONTENT RENDERER
-  // ==================================================
+  List<Widget> _buildBotContent(BuildContext context) {
+    final theme = Theme.of(context);
 
-  List<Widget> _buildBotContent() {
     if (_post == null || _post!.isEmpty) {
-      return const [Text('Failed to generate README.')];
+      return [
+        Text(
+          'Failed to generate README.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+      ];
     }
 
     final lines = _post!.split('\n');
@@ -246,7 +237,7 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
     for (final line in lines) {
       if (line.trim().startsWith('```')) {
         if (inCodeBlock) {
-          widgets.add(_codeBlock(codeBuffer.toString()));
+          widgets.add(_codeBlock(context, codeBuffer.toString()));
           codeBuffer.clear();
         }
         inCodeBlock = !inCodeBlock;
@@ -259,75 +250,86 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
       }
 
       if (line.startsWith('## ')) {
-        widgets.add(_heading(line.substring(3)));
+        widgets.add(_heading(context, line.substring(3)));
         continue;
       }
 
       if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-        widgets.add(_bullet(line.trim().substring(2)));
+        widgets.add(_bullet(context, line.trim().substring(2)));
         continue;
       }
 
       if (RegExp(r'^\d+\.\s').hasMatch(line)) {
-        widgets.add(_numbered(line));
+        widgets.add(_numbered(context, line));
         continue;
       }
 
       if (line.trim().isNotEmpty) {
-        widgets.add(_richText(line));
+        widgets.add(_richText(context, line));
       }
     }
 
     return widgets;
   }
 
-  // ==================================================
-  // BLOCK STYLES
-  // ==================================================
+  Widget _heading(BuildContext context, String text) {
+    final theme = Theme.of(context);
 
-  Widget _heading(String text) {
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF0F172A),
+          color: theme.colorScheme.onSurface,
         ),
       ),
     );
   }
 
-  Widget _richText(String text) {
+  Widget _richText(BuildContext context, String text) {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: SelectableText.rich(
-        TextSpan(children: _parseInline(text)),
-        style: const TextStyle(
+        TextSpan(children: _parseInline(context, text)),
+        style: TextStyle(
           fontSize: 15.5,
           height: 1.65,
-          color: Color(0xFF0F172A),
+          color: theme.colorScheme.onSurface,
         ),
       ),
     );
   }
 
-  Widget _bullet(String text) {
+  Widget _bullet(BuildContext context, String text) {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(left: 12, bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ', style: TextStyle(fontSize: 18, height: 1.5)),
-          Expanded(child: _richText(text)),
+          Text(
+            '\u2022 ',
+            style: TextStyle(
+              fontSize: 18,
+              height: 1.5,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          Expanded(child: _richText(context, text)),
         ],
       ),
     );
   }
 
-  Widget _numbered(String text) {
+  Widget _numbered(BuildContext context, String text) {
+    final theme = Theme.of(context);
     final parts = text.split(RegExp(r'\.\s'));
+
     return Padding(
       padding: const EdgeInsets.only(left: 12, bottom: 8),
       child: Row(
@@ -335,40 +337,43 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
         children: [
           Text(
             '${parts.first}. ',
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
           ),
-          Expanded(child: _richText(parts.sublist(1).join('. '))),
+          Expanded(child: _richText(context, parts.sublist(1).join('. '))),
         ],
       ),
     );
   }
 
-  Widget _codeBlock(String code) {
+  Widget _codeBlock(BuildContext context, String code) {
+    final theme = Theme.of(context);
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: SelectableText(
         code.trim(),
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'monospace',
           fontSize: 13,
           height: 1.5,
+          color: theme.colorScheme.onSurface,
         ),
       ),
     );
   }
 
-  // ==================================================
-  // INLINE PARSER
-  // ==================================================
-
-  List<TextSpan> _parseInline(String text) {
+  List<TextSpan> _parseInline(BuildContext context, String text) {
+    final theme = Theme.of(context);
     final spans = <TextSpan>[];
     final regex = RegExp(r"(\*\*.*?\*\*|\*.*?\*|`.*?`|'.*?'|#\w[\w-]*)");
 
@@ -399,8 +404,8 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
         spans.add(
           TextSpan(
             text: value,
-            style: const TextStyle(
-              color: Colors.blue,
+            style: TextStyle(
+              color: theme.colorScheme.primary,
               fontStyle: FontStyle.italic,
             ),
           ),
@@ -409,9 +414,10 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
         spans.add(
           TextSpan(
             text: value.substring(1, value.length - 1),
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'monospace',
-              backgroundColor: Color(0xFFE2E8F0),
+              color: theme.colorScheme.onSurface,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
             ),
           ),
         );
@@ -426,10 +432,6 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
 
     return spans;
   }
-
-  // ==================================================
-  // COMMIT BAR
-  // ==================================================
 
   Widget _commitBar(ThemeData theme) {
     return Padding(
@@ -455,7 +457,7 @@ class _ReadmePreviewSheetState extends State<ReadmePreviewSheet> {
                 )
               : const Icon(Icons.cloud_upload_rounded),
           label: Text(
-            committing ? 'Committing README…' : 'Commit README to GitHub',
+            committing ? 'Committing README...' : 'Commit README to GitHub',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../services/ai_content_service.dart';
 import 'loading/app_skeleton.dart';
 
@@ -48,11 +49,7 @@ class _ResumePointsSheetState extends State<ResumePointsSheet> {
     );
   }
 
-  // ==================================================
-  // CONTENT RENDERER
-  // ==================================================
-
-  List<Widget> _buildBotContent() {
+  List<Widget> _buildBotContent(BuildContext context) {
     final lines = _points!.split('\n');
     final widgets = <Widget>[];
 
@@ -62,7 +59,7 @@ class _ResumePointsSheetState extends State<ResumePointsSheet> {
     for (final line in lines) {
       if (line.trim().startsWith('```')) {
         if (inCodeBlock) {
-          widgets.add(_codeBlock(codeBuffer.toString()));
+          widgets.add(_codeBlock(context, codeBuffer.toString()));
           codeBuffer.clear();
         }
         inCodeBlock = !inCodeBlock;
@@ -75,75 +72,85 @@ class _ResumePointsSheetState extends State<ResumePointsSheet> {
       }
 
       if (line.startsWith('## ')) {
-        widgets.add(_heading(line.replaceFirst('## ', '')));
+        widgets.add(_heading(context, line.replaceFirst('## ', '')));
         continue;
       }
 
       if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-        widgets.add(_bullet(line.trim().substring(2)));
+        widgets.add(_bullet(context, line.trim().substring(2)));
         continue;
       }
 
       if (RegExp(r'^\d+\.\s').hasMatch(line)) {
-        widgets.add(_numbered(line));
+        widgets.add(_numbered(context, line));
         continue;
       }
 
       if (line.trim().isNotEmpty) {
-        widgets.add(_richText(line));
+        widgets.add(_richText(context, line));
       }
     }
 
     return widgets;
   }
 
-  // ==================================================
-  // BLOCK STYLES
-  // ==================================================
+  Widget _heading(BuildContext context, String text) {
+    final theme = Theme.of(context);
 
-  Widget _heading(String text) {
     return Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 6),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF0F172A),
+          color: theme.colorScheme.onSurface,
         ),
       ),
     );
   }
 
-  Widget _richText(String text) {
+  Widget _richText(BuildContext context, String text) {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: SelectableText.rich(
-        TextSpan(children: _parseInline(text)),
-        style: const TextStyle(
+        TextSpan(children: _parseInline(context, text)),
+        style: TextStyle(
           fontSize: 15.5,
           height: 1.65,
-          color: Color(0xFF0F172A),
+          color: theme.colorScheme.onSurface,
         ),
       ),
     );
   }
 
-  Widget _bullet(String text) {
+  Widget _bullet(BuildContext context, String text) {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.only(left: 8, bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ', style: TextStyle(fontSize: 18)),
-          Expanded(child: _richText(text)),
+          Text(
+            '\u2022 ',
+            style: TextStyle(
+              fontSize: 18,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          Expanded(child: _richText(context, text)),
         ],
       ),
     );
   }
 
-  Widget _numbered(String text) {
+  Widget _numbered(BuildContext context, String text) {
+    final theme = Theme.of(context);
     final parts = text.split(RegExp(r'\.\s'));
+
     return Padding(
       padding: const EdgeInsets.only(left: 8, bottom: 6),
       child: Row(
@@ -151,39 +158,43 @@ class _ResumePointsSheetState extends State<ResumePointsSheet> {
         children: [
           Text(
             '${parts.first}. ',
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
           ),
-          Expanded(child: _richText(parts.sublist(1).join('. '))),
+          Expanded(child: _richText(context, parts.sublist(1).join('. '))),
         ],
       ),
     );
   }
 
-  Widget _codeBlock(String code) {
+  Widget _codeBlock(BuildContext context, String code) {
+    final theme = Theme.of(context);
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: SelectableText(
         code.trim(),
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'monospace',
           fontSize: 13,
           height: 1.5,
+          color: theme.colorScheme.onSurface,
         ),
       ),
     );
   }
 
-  // ==================================================
-  // INLINE PARSER (**bold**, *italic*, `code`, 'code')
-  // ==================================================
-
-  List<TextSpan> _parseInline(String text) {
+  List<TextSpan> _parseInline(BuildContext context, String text) {
+    final theme = Theme.of(context);
     final spans = <TextSpan>[];
     final regex = RegExp(r"(\*\*.*?\*\*|\*.*?\*|`.*?`|'.*?')");
 
@@ -214,9 +225,10 @@ class _ResumePointsSheetState extends State<ResumePointsSheet> {
         spans.add(
           TextSpan(
             text: value.substring(1, value.length - 1),
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'monospace',
-              backgroundColor: Color(0xFFE2E8F0),
+              color: theme.colorScheme.onSurface,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
             ),
           ),
         );
@@ -231,10 +243,6 @@ class _ResumePointsSheetState extends State<ResumePointsSheet> {
 
     return spans;
   }
-
-  // ==================================================
-  // UI
-  // ==================================================
 
   @override
   Widget build(BuildContext context) {
@@ -253,76 +261,72 @@ class _ResumePointsSheetState extends State<ResumePointsSheet> {
         ),
         child: Column(
           children: [
-            /// Drag handle
             Container(
               width: 40,
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: theme.dividerColor.withOpacity(0.4),
+                color: theme.dividerColor.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
-
-            /// Header
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Resume bullet points ✨',
-                        style: TextStyle(
-                          fontSize: 22,
+                        'Resume bullet points',
+                        style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
                         'ATS-optimized points you can paste directly',
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
+                  color: theme.colorScheme.onSurfaceVariant,
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
             ),
-
             const SizedBox(height: 20),
-
-            /// Content
             Expanded(
               child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceVariant.withOpacity(
-                    0.55,
-                  ),
+                  color: theme.colorScheme.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
                 ),
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: _points == null
                         ? [
-                            const Text(
+                            Text(
                               'Failed to generate resume points.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                              ),
                             ),
                           ]
-                        : _buildBotContent(),
+                        : _buildBotContent(context),
                   ),
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
-
-            /// Action
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
